@@ -1,12 +1,22 @@
-# AI Code Review with DeepSeek — Headless PR Review Automation
+# DUT AI PR Preview System
+
+> **Preview project:** An experimental GitHub pull-request review system
+> maintained and hosted by DUT AI Club. It is built on
+> [DeepSeek Harness](https://deepseek.com/harness/en/) and adapted from
+> Nexpeak's MIT-licensed
+> [deepseek-harness-pr-review](https://github.com/nexpeakcore/deepseek-harness-pr-review).
+> This is an independent club project and is not affiliated with or endorsed by
+> DeepSeek or Nexpeak.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
 [![Built on DeepSeek Harness](https://img.shields.io/badge/built%20on-DeepSeek%20Harness-4dabf7.svg)](https://deepseek.com/harness/en/)
 
-**AI code review with DeepSeek: headless PR review automation** that verifies
+**Headless AI-assisted pull-request review automation** that verifies
 PR descriptions claim-by-claim against real code, checks docs against reality,
 and flags requirement impact — with human-in-the-loop only when it matters.
+DeepSeek Harness is the default agent runtime, while the model/backend can be
+configured independently where a compatible integration is available.
 
 ## Why
 
@@ -63,7 +73,7 @@ Requirements: Python 3.10+ (recommended 3.11), `gh` CLI already authenticated.
 **One-liner (recommended — auto-detects Python, creates a venv, fixes PATH):**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nexpeakcore/deepseek-harness-pr-review/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/DUT-AI/dut-ai-pr-preview-system/main/scripts/install.sh | bash
 ```
 
 The installer finds a Python 3.10+ interpreter (falls back to Homebrew on
@@ -74,7 +84,7 @@ package from GitHub, symlinks `harness-pr-review` + `autoreview` into
 **Or install manually:**
 
 ```bash
-pip install git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git
+pip install git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git
 ```
 
 **Or clone for development:**
@@ -164,7 +174,7 @@ harness-pr-review --version  # show the installed version
 Installed via pip (no clone):
 
 ```bash
-pip install -U git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git
+pip install -U git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git
 ```
 
 Cloned for development:
@@ -340,4 +350,8 @@ re-run with `--force`; the PR comment is updated in place (never duplicated).
 
 ## License
 
-[MIT](LICENSE) © 2026 Nexpeak
+This project is based on
+[deepseek-harness-pr-review](https://github.com/nexpeakcore/deepseek-harness-pr-review)
+by Nexpeak and is distributed under the [MIT License](LICENSE). The original
+copyright and permission notice are preserved. Club-specific changes are
+maintained by DUT AI Club.

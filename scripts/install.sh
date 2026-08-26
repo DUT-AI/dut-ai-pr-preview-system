@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-liner installer for harness-pr-review.
 #
-#   curl -fsSL https://raw.githubusercontent.com/nexpeakcore/deepseek-harness-pr-review/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/DUT-AI/dut-ai-pr-preview-system/main/scripts/install.sh | bash
 #
 # What it does:
 #   1. Finds a Python 3.10+ interpreter (prefers 3.12/3.11/3.10, falls back to
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-REPO_URL="git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git"
+REPO_URL="git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git"
 INSTALL_DIR="$HOME/.harness-pr-review"
 VENV_DIR="$INSTALL_DIR/venv"
 BIN_DIR="$HOME/.local/bin"

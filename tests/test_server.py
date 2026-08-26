@@ -703,8 +703,8 @@ def test_header_links_to_this_project_repo(tmp_path, monkeypatch):
 
     for path in ("/", "/config"):
         html = client.get(path).text
-        assert "nexpeakcore/deepseek-harness-pr-review" in html
-        assert 'href="https://github.com/nexpeakcore/deepseek-harness-pr-review"' in html
+        assert "DUT-AI/dut-ai-pr-preview-system" in html
+        assert 'href="https://github.com/DUT-AI/dut-ai-pr-preview-system"' in html
         assert 'target="_blank"' in html
         # The GitHub mark is inlined, not fetched: the dashboard is a localhost
         # app and must render with no network.

@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/nexpeakcore/deepseek-harness-pr-review"
+Repository = "https://github.com/DUT-AI/dut-ai-pr-preview-system"
 
 [project.scripts]
 harness-pr-review = "src.run:main"

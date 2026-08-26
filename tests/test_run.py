@@ -279,7 +279,7 @@ def test_update_command(monkeypatch, capsys):
     assert code == 0
     assert calls[0][0] == "python" or "pip" in str(calls[0])
     assert "install" in calls[0]
-    assert "deepseek-harness-pr-review[web] @ git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git" in " ".join(calls[0])
+    assert "deepseek-harness-pr-review[web] @ git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git" in " ".join(calls[0])
     assert "Updated" in capsys.readouterr().out
 
 

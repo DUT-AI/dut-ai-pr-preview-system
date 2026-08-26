@@ -102,7 +102,7 @@ def _web() -> int:
         print("Web dashboard requires the 'web' extras. "
               "Reinstall with:\n"
               "  pip install -U 'deepseek-harness-pr-review[web] @ "
-              "git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git'\n"
+              "git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git'\n"
               "(or re-run the one-liner installer, which includes them)",
               file=sys.stderr)
         return 1
@@ -257,7 +257,7 @@ def _update() -> int:
     proc = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-U",
          "deepseek-harness-pr-review[web] @ "
-         "git+https://github.com/nexpeakcore/deepseek-harness-pr-review.git"],
+         "git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git"],
         capture_output=True, text=True)
     if proc.returncode != 0:
         print(f"Update failed:\n{proc.stderr[-2000:]}", file=sys.stderr)
