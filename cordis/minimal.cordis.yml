@@ -1,74 +1,43 @@
 # cordis/minimal.cordis.yml
-# Complete unattended minimal-agent composition for the Python SDK. The model
-# sees one deployment-selected system prompt and only the owner-scoped
-# persistent Bash and string-replace editor tools.
-- id: sdk-jsonrpc-server
-  name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
-  config:
-    maxTokensAsSuccess: false
-
+# Runtime overrides for the SDK's shipped `sdk-minimal` profile. Keep this as a
+# patch, not a complete application tree: the profile owns the JSON-RPC server,
+# model/session spine, and the two-tool composition.
 - id: llm-deepseek
   name: '@deepseek-ai/dsh-llm-deepseek'
   config:
     apiKeyEnv: DEEPSEEK_API_KEY
+    defaultContextWindow: !!js Number(process.env.DSH_CONTEXT_WINDOW ?? 1000000)
+    # Structured review output must land in content instead of hidden reasoning.
+    thinking: disabled
+    reasoningEffort: off
     streamIdleTimeoutMs: 1800000
-    models:
-      - id: !!js process.env.DSH_MODEL ?? 'deepseek-v4-flash'
-        contextWindow: !!js Number(process.env.DSH_CONTEXT_WINDOW ?? 1000000)
-
-- id: sandbox
-  name: '@deepseek-ai/dsh-sandbox-local'
 
 - id: sandbox-policy
   name: '@deepseek-ai/dsh-sandbox-policy'
   config:
-    # workspace-write: agent chỉ ghi trong workspace (findings.json) — không
-    # cho phép sửa file ngoài workspace kể cả khi repo bị prompt-inject
-    # (PR body / code trong repo là untrusted input).
     mode: workspace-write
     workspaceRoot: !!js process.env.DSH_CWD ?? process.cwd()
-
-- id: subprocess
-  name: '@deepseek-ai/dsh-subprocess-local'
-
-- id: pty
-  name: '@deepseek-ai/dsh-terminal'
-
-- id: terminal-bash
-  name: '@deepseek-ai/dsh-terminal-bash'
-  config:
-    timeoutMs: 300000
 
 - id: fs-local
   name: '@deepseek-ai/dsh-fs-local'
   config:
     cwd: !!js process.env.DSH_CWD ?? process.cwd()
 
-- id: agent-spine
-  name: '@deepseek-ai/dsh-agent-spine-demo'
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
   config:
     includeHarnessIdentity: false
     includeRuntimeContext: false
     persona: !!js process.env.DSH_SYSTEM_PROMPT ?? 'You are a helpful software engineer assistant.'
-    workspaceContext: false
-    skills:
-      enabled: false
-    toolBash: false
-    toolJobs: false
 
 - id: persistent-bash
   name: '@deepseek-ai/dsh-tool-bash-persistent'
+  disabled: !!js process.platform === 'win32'
   config:
     timeoutMs: 300000
     description: |-
-      Run commands in a bash shell
-      * When invoking this tool, the contents of the "command" parameter does NOT need to be XML-escaped.
-      * You don't have access to the internet via this tool.
-      * You do have access to a mirror of common linux and python packages via apt and pip.
-      * State is persistent across command calls and discussions with the user.
-      * To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.
-      * Please avoid commands that may produce a very large amount of output.
-      * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.
+      Run commands in a bash shell within the review workspace.
+      Do not access the network or files outside the workspace.
 
 - id: str-replace-editor
   name: '@deepseek-ai/dsh-tool-str-replace-editor'

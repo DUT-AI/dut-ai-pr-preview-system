@@ -3,12 +3,12 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "deepseek-harness-pr-review"
+name = "dut-ai-pr-preview-system"
 version = "1.4.0"
-description = "Headless PR review automation on top of DeepSeek Harness"
+description = "DUT AI Club headless pull-request review automation"
 requires-python = ">=3.10"
 dependencies = [
-    "deepseek-harness-sdk",
+    "deepseek-harness-sdk==0.1.2a3",
     "pyyaml",
 ]
 
@@ -16,19 +16,28 @@ dependencies = [
 Repository = "https://github.com/DUT-AI/dut-ai-pr-preview-system"
 
 [project.scripts]
+dut-ai-pr-review = "src.run:main"
+# Backward-compatible alias inherited from the upstream project.
 harness-pr-review = "src.run:main"
 autoreview = "src.autoreview:main"
 
 [project.optional-dependencies]
 dev = ["pytest"]
-web = ["fastapi", "uvicorn", "jinja2", "httpx"]
+server = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
+    "httpx>=0.27",
+    "psycopg[binary]>=3.2",
+    "cryptography>=43",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "web*"]
+include = ["src*", "app*"]
 
 [tool.setuptools.package-data]
-web = ["templates/*.html", "static/*.css"]
+app = ["server/*.sql", "ui/templates/*.html", "ui/static/*.css"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

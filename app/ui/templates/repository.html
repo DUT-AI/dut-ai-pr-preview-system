@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ repository.full_name }} · DUT AI{% endblock %}
+{% block content %}
+<p class="eyebrow">REPOSITORY</p><h1>{{ repository.full_name }}</h1>
+<div class="card table-wrap">
+<table><thead><tr><th>PR</th><th>Nhánh</th><th>Head SHA</th><th>Trạng thái</th><th>Review gần nhất</th></tr></thead><tbody>
+{% for pr in pull_requests %}<tr>
+  <td><b>#{{ pr.number }}</b> {{ pr.title }}<small>{{ pr.author }}</small></td>
+  <td>{{ pr.head_ref }} → {{ pr.base_ref }}</td><td class="mono">{{ pr.head_sha[:10] }}</td><td>{{ pr.state }}</td>
+  <td>{% if pr.latest_run_id %}<a href="/runs/{{ pr.latest_run_id }}">{{ pr.latest_run_status }}</a>{% else %}Đang chờ{% endif %}</td>
+</tr>{% else %}<tr><td colspan="5">Chưa nhận webhook PR.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="eyebrow">REVIEW QUEUE</p><h2>Trạng thái pipeline</h2>
+<div class="card table-wrap">
+<table><thead><tr><th>Job</th><th>PR</th><th>Head SHA</th><th>Trạng thái</th><th>Lần chạy</th><th>Chi tiết</th></tr></thead><tbody>
+{% for job in jobs %}<tr>
+  <td>#{{ job.id }}</td><td>#{{ job.pr_number }}</td>
+  <td class="mono">{{ job.head_sha[:10] }}</td><td>{{ job.status }}</td>
+  <td>{{ job.attempt }}</td><td>{{ job.error or '—' }}</td>
+</tr>{% else %}<tr><td colspan="6">Chưa có job từ webhook.</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

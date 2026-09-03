@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -25,7 +26,7 @@ def test_load_config_from_env(monkeypatch):
     assert cfg.api_key == "sk-test"
     assert cfg.model == "deepseek-r1"
     assert cfg.base_url == "http://localhost:8000/v1"
-    assert str(cfg.session_root) == "/tmp/my-sessions"
+    assert cfg.session_root == Path("/tmp/my-sessions")
 
 
 def test_load_config_defaults_to_the_deepseek_backend(monkeypatch):

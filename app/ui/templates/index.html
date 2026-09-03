@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div><p class="eyebrow">OVERVIEW</p><h1>Repository đang theo dõi</h1></div>
+  <span class="badge {{ 'live' if publish_enabled else '' }}">{{ 'Publish enabled' if publish_enabled else 'Preview only' }}</span>
+</section>
+<section class="grid">
+{% for repo in repositories %}
+  <a class="card repo-card" href="/repositories/{{ repo.owner }}/{{ repo.name }}">
+    <p class="muted">{{ repo.owner }}</p><h2>{{ repo.name }}</h2>
+    <div class="metrics"><span><b>{{ repo.pull_request_count }}</b> PR</span><span><b>{{ repo.run_count }}</b> review</span><span><b>{{ repo.active_job_count }}</b> đang xử lý</span></div>
+    <p class="mono">{{ repo.default_branch or 'branch chưa đồng bộ' }}</p>
+  </a>
+{% else %}
+  <div class="card empty"><h2>Chưa có dữ liệu</h2><p>Worker sẽ đồng bộ repository từ installation của GitHub App.</p></div>
+{% endfor %}
+</section>
+{% endblock %}

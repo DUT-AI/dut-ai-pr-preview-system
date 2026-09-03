@@ -43,5 +43,7 @@ def run_gate(findings: dict, session_dir: Path, interactive: bool = True) -> lis
         answers.append({"question": question, "kind": kind, "answer": answer})
 
     session_dir.mkdir(parents=True, exist_ok=True)
-    (session_dir / "answers.json").write_text(json.dumps(answers, indent=2))
+    (session_dir / "answers.json").write_text(
+        json.dumps(answers, indent=2), encoding="utf-8"
+    )
     return answers

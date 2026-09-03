@@ -38,7 +38,7 @@ DEFAULTS = {
 def load_config(path: Path) -> dict:
     """Read autoreview.yml, normalize, merge defaults. Raises OSError/ValueError."""
     try:
-        raw = yaml.safe_load(path.read_text()) or {}
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError as e:
         raise ValueError(f"invalid config YAML: {e}") from e
     cfg = {**DEFAULTS, **raw}
@@ -80,7 +80,7 @@ def validate_config(cfg: dict) -> None:
 
 def _write_atomic(path: Path, cfg: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    tmp.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
     os.replace(tmp, path)
 
 

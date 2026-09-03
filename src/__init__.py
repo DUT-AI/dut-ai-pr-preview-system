@@ -1,7 +1,7 @@
-"""Headless PR review automation built on the DeepSeek Harness SDK."""
+"""DUT AI Club pull-request preview and review automation."""
 import importlib.metadata
 
-DIST_NAME = "deepseek-harness-pr-review"
+DIST_NAME = "dut-ai-pr-preview-system"
 
 try:
     # Single source of truth is pyproject.toml, read through the installed

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Review #{{ run.pr_number }} · DUT AI{% endblock %}
+{% block content %}
+<p class="eyebrow">REVIEW RUN #{{ run.id }}</p>
+<h1>{{ run.repository }} · PR #{{ run.pr_number }}</h1>
+<div class="run-meta"><span class="badge live">{{ run.status }}</span><span class="mono">{{ run.head_sha }}</span></div>
+<div class="columns">
+  <section class="card"><h2>Preview comment</h2><pre>{{ run.preview_comment or 'Chưa có preview.' }}</pre>
+  {% if publish_enabled and run.preview_comment %}<form method="post" action="/runs/{{ run.id }}/publish">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger" type="submit">Đăng comment lên GitHub</button>
+  </form>{% endif %}</section>
+  <section class="card"><h2>Commit history</h2><ul class="commits">{% for commit in commits %}<li><code>{{ commit.sha[:8] }}</code><span>{{ commit.message.split('\n')[0] }}</span><small>{{ commit.author }}</small></li>{% else %}<li>Không có commit.</li>{% endfor %}</ul></section>
+</div>
+<section class="card"><h2>Báo cáo</h2><pre>{{ run.report or 'Chưa có báo cáo.' }}</pre></section>
+<section class="card"><h2>Lịch sử publish</h2><ul>{% for item in publish_audit %}<li>{{ item.created_at }} · {{ item.status }} · {{ item.action }}{% if item.comment_id %} · comment {{ item.comment_id }}{% endif %}</li>{% else %}<li>Chưa đăng comment.</li>{% endfor %}</ul></section>
+{% endblock %}

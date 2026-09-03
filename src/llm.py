@@ -5,6 +5,9 @@ import urllib.error
 import urllib.request
 
 
+USER_AGENT = "dut-ai-pr-preview-system/1.4"
+
+
 def chat(messages: list[dict], *, model: str, api_key: str, base_url: str,
          max_tokens: int = 49_152, retries: int = 3) -> str:
     """POST {base_url}/chat/completions. Retry up to `retries` times (timeout/429/5xx).
@@ -19,6 +22,10 @@ def chat(messages: list[dict], *, model: str, api_key: str, base_url: str,
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
+        # llama.cpp forwards this to thinking-capable chat templates. The
+        # review pipeline needs the requested JSON in `content`, not an empty
+        # answer after the token budget is consumed by hidden reasoning.
+        "chat_template_kwargs": {"enable_thinking": False},
     }).encode()
 
     last_err = None
@@ -27,7 +34,8 @@ def chat(messages: list[dict], *, model: str, api_key: str, base_url: str,
             f"{base_url.rstrip('/')}/chat/completions",
             data=payload,
             headers={"Content-Type": "application/json",
-                     "Authorization": f"Bearer {api_key}"},
+                     "Authorization": f"Bearer {api_key}",
+                     "User-Agent": USER_AGENT},
         )
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:

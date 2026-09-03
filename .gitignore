@@ -17,3 +17,7 @@ autoreview.yml
 .agent-slots/
 dashboard.log
 .env.bak.*
+secrets/
+
+.ask/
+.agents/memories

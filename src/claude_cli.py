@@ -268,7 +268,7 @@ def _write_meta(path: Path, data: dict, history: list, spent: float) -> None:
     meta["harness_total_cost_usd"] = round(spent, 6)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(meta, indent=2))
+        path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
     except (OSError, TypeError, ValueError):
         pass
 

@@ -1,28 +1,29 @@
 #!/usr/bin/env bash
-# One-liner installer for harness-pr-review.
+# One-liner installer for DUT AI PR Preview System.
 #
 #   curl -fsSL https://raw.githubusercontent.com/DUT-AI/dut-ai-pr-preview-system/main/scripts/install.sh | bash
 #
 # What it does:
 #   1. Finds a Python 3.10+ interpreter (prefers 3.12/3.11/3.10, falls back to
 #      Homebrew on macOS; errors clearly if only 3.9 is present)
-#   2. Creates an isolated venv at ~/.harness-pr-review/venv (no system Python
+#   2. Creates an isolated venv at ~/.dut-ai-pr-preview-system/venv (no system Python
 #      is touched, no sudo)
 #   3. Upgrades pip inside the venv (old pip builds empty "UNKNOWN" wheels)
 #   4. Installs/updates the package from GitHub into the venv
-#   5. Symlinks `harness-pr-review` + `autoreview` into ~/.local/bin and adds
+#   5. Symlinks `dut-ai-pr-review`, the compatibility alias
+#      `harness-pr-review`, and `autoreview` into ~/.local/bin and adds
 #      it to PATH (~/.zshrc / ~/.bashrc) if missing
-#   6. Runs `harness-pr-review doctor`
+#   6. Runs `dut-ai-pr-review doctor`
 #
 # Idempotent: re-running updates to the latest version.
 
 set -euo pipefail
 
 REPO_URL="git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git"
-INSTALL_DIR="$HOME/.harness-pr-review"
+INSTALL_DIR="$HOME/.dut-ai-pr-preview-system"
 VENV_DIR="$INSTALL_DIR/venv"
 BIN_DIR="$HOME/.local/bin"
-SHORTCUTS=("harness-pr-review" "autoreview")
+SHORTCUTS=("dut-ai-pr-review" "harness-pr-review" "autoreview")
 
 say()  { printf "\033[1;34m==>\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[!]\033[0m %s\n" "$*"; }
@@ -70,9 +71,9 @@ say "Upgrading pip inside the venv..."
 "$VENV_PY" -m pip install --quiet --upgrade pip
 
 # ------------------------------------------------------------ 4. install
-say "Installing / updating harness-pr-review (with web extras) from GitHub..."
+say "Installing / updating DUT AI PR Preview System CLI from GitHub..."
 "$VENV_PY" -m pip install --quiet --upgrade \
-  "deepseek-harness-pr-review[web] @ $REPO_URL"
+  "dut-ai-pr-preview-system @ $REPO_URL"
 
 # ------------------------------------------------------------ 5. symlinks
 mkdir -p "$BIN_DIR"
@@ -100,8 +101,8 @@ esac
 
 # ------------------------------------------------------------ 6. doctor
 say "Checking readiness..."
-"$BIN_DIR/harness-pr-review" doctor || true
+"$BIN_DIR/dut-ai-pr-review" doctor || true
 
-say "Done. Run 'harness-pr-review doctor' (or open a new terminal) to verify."
+say "Done. Run 'dut-ai-pr-review doctor' (or open a new terminal) to verify."
 say "Next: gh auth login  &&  export DEEPSEEK_API_KEY=sk-..."
 say "      (or export HARNESS_PROVIDER=claude to run the review on the Claude Code CLI — no API key needed)"

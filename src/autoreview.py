@@ -17,6 +17,7 @@ from src.autoreview_config import auto_repos, list_repos, load_config, \
 from src.config import PROVIDERS
 from src.config import load_config as load_env_config
 from src.gh import gh_available, run_gh
+from src.process_control import process_is_alive
 from src.review_proc import review_lock_alive
 
 CONFIG_PATH = Path("autoreview.yml")
@@ -36,7 +37,7 @@ def decide_pr(session_root: Path, owner: str, repo: str, n: int,
     if not snapshot_path.exists():
         return "NEW"
     try:
-        snapshot = json.loads(snapshot_path.read_text())
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return "RE-RUN"  # snapshot hỏng → chạy lại cho an toàn
     old_sha = snapshot.get("head_sha", "")
@@ -86,13 +87,8 @@ def _acquire_lock() -> bool:
     # bởi tiến trình khác hoặc tiến trình treo → cướp lock với cảnh báo.
     if LOCK_PATH.exists():
         try:
-            pid = int(LOCK_PATH.read_text().strip() or "0")
-            alive = pid > 0
-            if alive:
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    alive = False
+            pid = int(LOCK_PATH.read_text(encoding="utf-8").strip() or "0")
+            alive = process_is_alive(pid)
             if alive and _lock_age_seconds() < _MAX_LOCK_AGE:
                 return False
             if alive:

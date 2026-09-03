@@ -121,5 +121,7 @@ def build_snapshot(owner: str, repo: str, n: int, session_dir: Path,
     }
 
     session_dir.mkdir(parents=True, exist_ok=True)
-    (session_dir / "snapshot.json").write_text(json.dumps(snapshot, indent=2))
+    (session_dir / "snapshot.json").write_text(
+        json.dumps(snapshot, indent=2), encoding="utf-8"
+    )
     return snapshot

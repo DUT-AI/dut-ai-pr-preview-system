@@ -1,357 +1,128 @@
 # DUT AI PR Preview System
 
-> **Preview project:** An experimental GitHub pull-request review system
-> maintained and hosted by DUT AI Club. It is built on
-> [DeepSeek Harness](https://deepseek.com/harness/en/) and adapted from
-> Nexpeak's MIT-licensed
-> [deepseek-harness-pr-review](https://github.com/nexpeakcore/deepseek-harness-pr-review).
-> This is an independent club project and is not affiliated with or endorsed by
-> DeepSeek or Nexpeak.
+Private GitHub App for reviewing pull requests in
+`DUT-AI/dut-ai-pr-preview-system`. The hosted application is owned by DUT AI;
+the review engine is adapted from Nexpeak's MIT-licensed
+[`deepseek-harness-pr-review`](https://github.com/nexpeakcore/deepseek-harness-pr-review).
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](pyproject.toml)
-[![Built on DeepSeek Harness](https://img.shields.io/badge/built%20on-DeepSeek%20Harness-4dabf7.svg)](https://deepseek.com/harness/en/)
+The default policy is preview-only: a worker stores the review result and
+comment preview in PostgreSQL, while publication requires an authenticated
+admin action and `PUBLISH_ENABLED=true`.
 
-**Headless AI-assisted pull-request review automation** that verifies
-PR descriptions claim-by-claim against real code, checks docs against reality,
-and flags requirement impact — with human-in-the-loop only when it matters.
-DeepSeek Harness is the default agent runtime, while the model/backend can be
-configured independently where a compatible integration is available.
+## Runtime layout
 
-## Why
+```text
+GitHub webhook -> FastAPI app -> PostgreSQL job -> worker
+                                              -> src/engine
+                                              -> Harness + LLM
+                                              -> persisted preview
+```
 
-PR descriptions lie. Docs go stale. Manual code review is slow and
-inconsistent. This tool runs a DeepSeek Harness agent that:
+- `app/server/controller.py`: FastAPI routes for login, UI, webhook, and API.
+- `app/server/services.py`: webhook, review-job, and publication use cases.
+- `app/server/repositories.py`: PostgreSQL persistence and GitHub App API client.
+- `app/server/config.py`, `models.py`, `schema.sql`: shared server configuration,
+  data objects, and one database schema.
+- `app/ui/`: Jinja templates and CSS; `app/worker.py`: background job loop.
+- `src/engine/`: secret-isolated subprocess gateway and engine runner.
+- `src/claims.py`, `src/verify.py`, `src/synthesize.py`: adapted upstream review
+  logic used by the engine.
+- `compose.yml`: production-like stack.
+- `compose.dev.yml`: development image, source mounts, and FastAPI reload.
 
-- **Verifies PR descriptions claim-by-claim** — each sentence of the
-  description is checked against the actual code, with `file:line` evidence
-- **Reviews PRs that have no description at all** — the ones that need it most.
-  Intent is reconstructed from commits, branch name, labels, the linked issue
-  and the diff, then the code is checked against its own implied intent:
-  unexplained scope creep, behaviour changes with no test or doc
-- **Detects stale and fabricated docs** — up to 60% of repo docs are wrong;
-  the agent compares them against real code (`MATCH / STALE / WRONG /
-  FABRICATED`)
-- **Flags requirement impact** — which business requirements a change touches,
-  and whether it breaks something (`CHANGED / BROKEN / RISK`)
-- **Runs headless** — one command, or an auto-review poller that watches every
-  new PR
+The removed legacy `web/` dashboard is not part of this architecture; `app/`
+is the only web application.
 
-## Demo
+## GitHub App credentials
 
-[![Dashboard: PR review with claim-by-claim evidence](docs/screenshots/dashboard-demo.png)](docs/screenshots/dashboard-demo.png)
+Create one private GitHub App owned by `DUT-AI`, install it only on this
+repository, and configure:
 
-The tool reviewing its own PR #9. Every sentence of the description became a
-numbered claim, each checked against the real code with `file:line` evidence —
-and the header is honest about what it found: description partial, 2 risks,
-2 stale docs. Tabs split claims, docs, requirement impact and review threads.
+- repository permissions: Metadata read, Contents read, Pull requests read/write,
+  Issues read/write;
+- webhook event: Pull request;
+- webhook secret: use the generated `GITHUB_WEBHOOK_SECRET` from `.env`;
+- webhook URL: `https://<server>/webhooks/github`;
+- webhook URL for the current development tunnel:
+  `https://fairinsight.luongduytoan.io.vn/webhooks/github`. Change it in the
+  GitHub App settings when the production domain is ready;
+- private key: download it to `secrets/github-app.pem`;
+- `GITHUB_APP_ID`: the App ID shown in the app settings;
+- `GITHUB_INSTALLATION_ID`: the numeric ID in the installation URL.
 
-Repo-level pages (KPIs, verdict distribution, every open PR with review status)
-and live demo data are included — see [Web dashboard](#web-dashboard).
+Do not use a personal access token. Do not commit `.env`, the PEM file, or any
+installation token.
 
-## Features
+## Local secrets
 
-| | |
-|---|---|
-| ✅ **Claim verification** | PR description split into verifiable claims, each checked against code with evidence |
-| ✅ **No-description fallback** | PR with an empty or boilerplate body: claims are reconstructed from commits, branch, labels, linked issue and the diff, then checked for internal consistency — and the reconstruction is posted back as the description the author should have written |
-| ✅ **Docs reality-check** | Docs compared to real code: `MATCH / STALE / WRONG / FABRICATED` |
-| ✅ **Requirement impact** | `CHANGED / BROKEN / RISK` analysis per business requirement |
-| ✅ **Human-in-the-loop** | ≤20-word confirmation questions only when uncertain — no guessing |
-| ✅ **Parallel agents** | One agent per review axis (claims / docs / impact), claims sharded past 15 — so a 40-claim PR cannot starve the docs check. Concurrency is capped globally across every review process |
-| ✅ **Ranked doc targets** | Docs are scored against the diff (path proximity, changed symbols, file mentions) before any agent runs — the agent verifies a bounded, reproducible list instead of grepping the repo |
-| ✅ **Repo config that stays true** | Adding a repo verifies it exists and is visible to your token first, so a typo cannot become a permanent config entry. `autoreview --check-repos` (and the /config page) flags entries GitHub can no longer reach and removes them in one click |
-| ✅ **Auto review poller** | Reviews new PRs automatically, re-reviews when the head commit changes |
-| ✅ **Web dashboard** | Repo config management, review triggers (Review now), live review logs, metrics: risks found, doc errors, verdicts, review rounds per repo |
-| ✅ **Idempotent PR comments** | One English comment per PR, updated in place — never duplicated |
-| ✅ **Traceable** | Every phase writes structured JSON to `sessions/` |
-
-## Install
-
-Requirements: Python 3.10+ (recommended 3.11), `gh` CLI already authenticated.
-
-**One-liner (recommended — auto-detects Python, creates a venv, fixes PATH):**
+Generate the ignored `.env` file without printing secrets:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DUT-AI/dut-ai-pr-preview-system/main/scripts/install.sh | bash
+python scripts/init_env.py
 ```
 
-The installer finds a Python 3.10+ interpreter (falls back to Homebrew on
-macOS), creates an isolated venv at `~/.harness-pr-review/venv`, installs the
-package from GitHub, symlinks `harness-pr-review` + `autoreview` into
-`~/.local/bin`, and runs `doctor`. Re-running it updates to the latest version.
+The generated `.env` has only eight entries: the PostgreSQL password, four
+GitHub App values, the recoverable local admin password plus its hash, and the
+session-signing secret. Compose passes only the admin hash to the application.
+Replace the two GitHub ID placeholders and add the downloaded private key before
+starting the full stack.
 
-**Or install manually:**
+Docker/code supply the current defaults: port `8000`, the single allowed DUT-AI
+repository, secure cookies in production, the internal keyless llama.cpp URL
+and model, and publication disabled. They may still be overridden explicitly
+through Compose when deployment requirements change. Never give an LLM provider
+credential to the terminal-capable Harness process.
+
+## Docker development
+
+Build the Linux development image and run all tests inside it:
 
 ```bash
-pip install git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git
+docker build --target development -t dut-ai-pr-preview:dev .
+docker run --rm dut-ai-pr-preview:dev python -m pytest -v
 ```
 
-**Or clone for development:**
+After GitHub App credentials are filled, start the reload-enabled stack:
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -e '.[dev]'   # zsh needs quotes; SDK comes from PyPI (deepseek-harness-sdk)
+docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
-Then authenticate:
+The admin UI is available at `http://127.0.0.1:8000`. Development overrides
+the secure-cookie flag for local HTTP only.
+
+## Docker deployment
+
+On the Linux server, keep `.env` and `secrets/github-app.pem` outside source
+control, terminate TLS in front of the loopback-bound service, then run:
 
 ```bash
-gh auth login          # required
-export DEEPSEEK_API_KEY=sk-...   # see .env.example
-harness-pr-review doctor         # verify everything is ready
+docker compose build
+docker compose up -d postgres web worker
+docker compose ps
 ```
 
-Running the review on Claude instead? Then no DeepSeek key is needed — see
-[Agent backends](#agent-backends).
+Publication is disabled by default even though it is no longer repeated in
+`.env`. Set `PUBLISH_ENABLED=true` only for an explicitly selected preview after
+checking the stored head SHA, then remove the override again.
 
-Keys can also live in a `.env` file. Two locations are read, in order:
-`./.env` (dev checkout) then `~/.harness-pr-review/.env` (one-liner install,
-so the CLI works from any directory). The first file to define a key wins, and
-a real environment variable always beats both.
-
-## Agent backends
-
-The review logic does not care which agent runtime reads the workspace, so the
-backend is one env var. Everything else — phases, prompts, schemas, report,
-comments — is identical either way.
-
-| `HARNESS_PROVIDER` | Runtime | Credentials |
-|---|---|---|
-| `deepseek` (default) | DeepSeek Harness SDK, composed by `cordis/minimal.cordis.yml` | `DEEPSEEK_API_KEY` |
-| `claude` | Headless `claude -p` (Claude Code CLI) | whatever the CLI is already logged in with — a Claude subscription is enough, no extra API key |
+## Static validation
 
 ```bash
-export HARNESS_PROVIDER=claude
-export HARNESS_CLAUDE_MODEL=sonnet   # or opus / haiku / a full model id
-harness-pr-review doctor             # now checks for the claude binary, not the SDK
-harness-pr-review owner/repo 123
+python -m compileall src app
+git diff --check
 ```
 
-The phase log names the backend that actually ran, so a review that quietly
-used the wrong one is visible in the dashboard:
+## CLI compatibility
 
-```
-[4/5] verify — starting agents
-      4 agents on claude/sonnet: claims-1, claims-2, docs, impact (cap 4 concurrent)
-```
+The engine-origin CLI remains available as `dut-ai-pr-review`; the upstream
+`harness-pr-review` name remains an alias so existing automation does not
+break. The hosted app does not use the removed local dashboard command.
 
-**The workspace is an untrusted PR**, and the Claude backend is locked down to
-match the sandbox policy the SDK backend runs under:
-
-- `--tools Read,Grep,Glob,Write` — no shell, no editing, no network. This is
-  the flag that decides which built-in tools *exist* for the run.
-  `--allowedTools` alone is not a boundary: it only pre-approves what may run
-  without a prompt, so a tool left out of it is still present and a user
-  settings rule can approve it. Both are passed, from the same list.
-- Phase 2 (claim extraction) runs with `--tools ""` — **no tools at all**. It
-  is text in, JSON out, its prompt carries the untrusted PR description and
-  diff, and unlike phase 3 it has no sandboxed workspace confining it.
-- `--safe-mode`, `--setting-sources user` and `--strict-mcp-config` mean a
-  `CLAUDE.md`, `.claude/settings.json`, hook or `.mcp.json` **committed inside
-  the reviewed repo is not loaded** — a PR does not get to configure the agent
-  reviewing it.
-- Each agent runs under `--max-budget-usd`, so a loop that stops making
-  progress stops spending. The ceiling covers the agent, retries included:
-  each attempt is given what is left of it rather than a fresh allowance.
-
-Per-agent cost, session id and any permission denial land in
-`sessions/<owner>/<repo>/pr-<n>/claude-<axis>.json`, next to the existing
-artefacts. `harness_attempts` and `harness_total_cost_usd` record what every
-attempt cost — the envelope itself only ever describes the last one.
-
-## Updating
-
-**Easiest — built-in self-update:**
-
-```bash
-harness-pr-review update     # installs the latest version from GitHub
-harness-pr-review --version  # show the installed version
-```
-
-**Or manually:**
-
-Installed via pip (no clone):
-
-```bash
-pip install -U git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git
-```
-
-Cloned for development:
-
-```bash
-git pull origin main   # pull the latest code
-pip install -e .       # refresh entry points if pyproject.toml changed
-```
-
-**After updating:**
-
-- The auto-review poller (launchd/cron) picks up the new code on its next
-  pass — no restart needed.
-- A running web dashboard keeps the old code until restarted: stop the
-  process, then start it again (`harness-pr-review web`).
-- Your existing `sessions/` data and `autoreview.yml` are preserved — updates
-  never touch them.
-
-## Usage
-
-After `pip install -e '.[dev]'` you get two commands:
-
-```bash
-harness-pr-review doctor                # check readiness: Python, gh, API key, SDK
-harness-pr-review owner/repo 123        # review one PR (interactive)
-harness-pr-review owner/repo 123 --skip-human   # batch, no questions
-harness-pr-review owner/repo 123 --no-post      # don't post a comment
-harness-pr-review https://github.com/owner/repo/pull/123  # paste a GitHub PR link
-autoreview --once                       # auto review: single pass
-autoreview --daemon                     # auto review: every interval_minutes
-autoreview --add-repo https://github.com/owner/repo --mode auto  # add by link
-```
-
-(Or run from source: `PYTHONPATH=src python -m src.run owner/repo 123`)
-
-Results land in `sessions/<owner>/<repo>/pr-<n>/report.md` (change the directory with `DSH_SESSION_ROOT`).
-
-## Pipeline
-
-1. **Snapshot** — fetch PR metadata, diff files, commits, review threads (GitHub REST + GraphQL)
-2. **Claims** — LLM splits the description into verifiable claims
-3. **Verify** — the agent backend deep-dives in a disposable worktree:
-   verifies each claim, docs reality-check (MATCH/STALE/WRONG/FABRICATED),
-   requirement impact, review thread status. DeepSeek Harness by default,
-   Claude Code with `HARNESS_PROVIDER=claude` — see [Agent backends](#agent-backends)
-4. **Human gate** — asks for confirmation (≤20 words/question) when docs are wrong or claims are uncertain
-5. **Synthesize** — English report.md + two comments on the PR:
-   - **The report** — one comment, edited in place on every re-review so the PR
-     never fills up with stale reports. It opens with a `Review complete` line
-     carrying the timestamp, round number and reviewed commit.
-   - **A round ping** — a short new comment per round with the headline numbers
-     (verdict, risks, doc errors, claim breakdown) and a link up to the report.
-     GitHub raises no notification for an edit, so this is the only part that
-     actually reaches subscribers. Disable with `--no-ping`, or
-     `ping_comment: false` in `autoreview.yml`.
-
-## Running tests
-
-```bash
-python -m pytest -v
-```
-
-## Web dashboard
-
-Web dashboard for review metrics (PRs reviewed, risks found, doc errors, verdicts
-per repo). Reads `sessions/` directly — no database.
-
-```bash
-pip install -e '.[web]'
-DSH_SESSION_ROOT=sessions harness-pr-review web
-harness-pr-review web   # open http://127.0.0.1:6789
-```
-
-Pages: repo list → repo detail (KPIs + verdict donut + PR table) → PR detail
-(tabs: Claims / Docs / Impact / Threads / Confirm). The PR table lists ALL open
-PRs from GitHub with review status (Not reviewed / Reviewing / Reviewed N
-rounds / Failed · interrupted — a session that never produced findings and has
-no live lock, i.e. the review crashed). Risks counts FAIL + PARTIAL claims and
-BROKEN + RISK impacts; Doc errors counts WRONG + FABRICATED + STALE docs. Each open PR row has a
-**Review now** / **Re-review** button that runs the review synchronously using
-the repo's auto-review config (skip-human + post-comment flags from
-`autoreview.yml`).
-
-**Demo data** is checked into `sessions/demo/app/` — start the server and open
-http://127.0.0.1:6789/repos/demo/app/pr/7 for a sample review (PR #8 shows a
-a CONTRADICTED verdict + FABRICATED doc), useful for screenshots and documentation.
-
-## Auto review
-
-Poll GitHub for new PRs (and head-SHA changes) and review them automatically in
-batch mode. Each repo is configured `auto` (poller reviews its PRs) or `manual`
-(poller skips it; review via CLI). Edit `autoreview.yml` directly, via CLI, or
-from the web dashboard (Config page → toggle Auto/Manual).
-
-`autoreview.yml` is gitignored — copy `autoreview.yml.example` and fill in your
-repos. Repo names stay private.
-
-```yaml
-# autoreview.yml (copy from autoreview.yml.example)
-org: your-org            # default org for repo discovery
-default_mode: manual     # repos not listed → manual
-interval_minutes: 2
-post_comment: true
-skip_human: true
-drafts: false
-skip_bots: true          # skip bot PRs (Renovate/Dependabot)
-repos:
-  your-repo: auto
-  another-repo: manual
-```
-
-```bash
-autoreview --add-repo sample-app --mode auto   # enable auto
-autoreview --rm-repo sample-app                # remove
-autoreview --repos                             # list status
-autoreview --once          # single pass (cron/launchd)
-autoreview --daemon        # loop every interval_minutes
-```
-
-launchd example (auto-start on login, every 2 minutes):
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>com.nexpeak.pr-review</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/Users/gianglh/work/harness/scripts/autoreview-once.sh</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StartInterval</key><integer>120</integer>
-  <key>StandardOutPath</key>
-  <string>/Users/gianglh/work/harness/autoreview.log</string>
-  <key>StandardErrorPath</key>
-  <string>/Users/gianglh/work/harness/autoreview.log</string>
-</dict>
-</plist>
-```
-
-`scripts/autoreview-once.sh` sources `.env` (API key stays out of the plist).
-
-**Parallel reviews.** `max_parallel` in `autoreview.yml` (default `1`, cap `8`)
-sets how many PRs one pass reviews at a time; `1` is the old sequential
-behaviour. Each review runs in its own process, and `review.lock` is per-PR, so
-two different PRs never share a workspace or a comment. The useful ceiling is
-your model API concurrency rather than CPU — roughly 80% of a review's wall
-time is spent waiting on the model. `review_timeout_minutes` (default `30`)
-kills a hung review so it cannot hold a slot forever.
-Install:
-
-```bash
-cp com.nexpeak.pr-review.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nexpeak.pr-review.plist
-```
-
-Re-review rules: head SHA in the PR changed vs the last snapshot → all phases
-re-run with `--force`; the PR comment is updated in place (never duplicated).
-
-## Configuration
-
-| Env | Default | Meaning |
-|---|---|---|
-| `HARNESS_PROVIDER` | `deepseek` | Agent backend: `deepseek` or `claude` (see [Agent backends](#agent-backends)) |
-| `HARNESS_CLAUDE_MODEL` | `sonnet` | Model for the `claude` backend |
-| `DEEPSEEK_API_KEY` | — | DeepSeek API key (only required by the `deepseek` backend) |
-| `DSH_MODEL` | `deepseek-v4-flash` | Model for the `deepseek` backend (agent + claim extraction) |
-| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI-compatible endpoint |
-| `DSH_SESSION_ROOT` | `sessions` | Directory storing per-phase results |
-
-## License
+## License and attribution
 
 This project is based on
-[deepseek-harness-pr-review](https://github.com/nexpeakcore/deepseek-harness-pr-review)
+[`deepseek-harness-pr-review`](https://github.com/nexpeakcore/deepseek-harness-pr-review)
 by Nexpeak and is distributed under the [MIT License](LICENSE). The original
-copyright and permission notice are preserved. Club-specific changes are
-maintained by DUT AI Club.
+copyright and permission notice are preserved. DUT AI Club maintains the
+hosted application and project-specific changes.

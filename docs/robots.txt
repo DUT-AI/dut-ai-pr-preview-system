@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://nexpeakcore.github.io/deepseek-harness-pr-review/sitemap.xml
