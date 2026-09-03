@@ -226,7 +226,9 @@ def extract_claims(snapshot: dict, cfg: dict, session_dir: Path,
             cfg, "inferred", chat)
 
     session_dir.mkdir(parents=True, exist_ok=True)
-    (session_dir / "claims.json").write_text(json.dumps(claims, indent=2))
+    (session_dir / "claims.json").write_text(
+        json.dumps(claims, indent=2), encoding="utf-8"
+    )
     return claims
 
 

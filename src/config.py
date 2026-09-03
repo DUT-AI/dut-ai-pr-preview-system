@@ -1,22 +1,21 @@
-"""Configuration from the environment. All env vars are optional.
-
-A `.env` file next to the working directory is loaded first (simple KEY=VALUE
-parser — no dotenv dependency); real environment variables win over it.
-"""
+"""Configuration from trusted home files and the process environment."""
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 
 def _load_dotenv() -> None:
-    # CWD .env (dev checkout / project dir) trước, rồi home .env cho bản cài
-    # qua one-liner installer (chạy từ bất kỳ đâu). Biến môi trường thật luôn
-    # thắng cả hai.
-    candidates = [Path(".env"), Path.home() / ".harness-pr-review" / ".env"]
+    # Never load CWD/.env: a reviewed checkout is untrusted and could redirect
+    # the provider or inject a credential. Home files are operator-controlled.
+    candidates = [
+        Path.home() / ".dut-ai-pr-preview-system" / ".env",
+        # Backward-compatible location used by the upstream package.
+        Path.home() / ".harness-pr-review" / ".env",
+    ]
     for path in candidates:
         if not path.exists():
             continue
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue

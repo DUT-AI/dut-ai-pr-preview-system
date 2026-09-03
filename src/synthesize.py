@@ -174,7 +174,7 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
     report = "\n".join(lines) + "\n"
 
     session_dir.mkdir(parents=True, exist_ok=True)
-    (session_dir / "report.md").write_text(report)
+    (session_dir / "report.md").write_text(report, encoding="utf-8")
     return report
 
 
@@ -357,7 +357,7 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
         f"{_badge(f'Doc errors: {doc_errors}', '#b9770e' if doc_errors else '#6b7280')}"
     )
     return (
-        f"## Harness PR Review — Verdict: {summary}\n\n"
+        f"## DUT AI PR Review — Verdict: {summary}\n\n"
         f"{_completion_line(snapshot, rounds, completed_at)}\n\n"
         f"{chr(10).join(sections)}\n\n{MARKER}"
     )

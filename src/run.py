@@ -1,7 +1,7 @@
-"""CLI entry: orchestrates 5 phase. Usage:
-harness-pr-review <owner>/<repo> <pr> [--skip-human] [--force] [--no-post]
+"""CLI entry: orchestrates 5 phases. Usage:
+dut-ai-pr-review <owner>/<repo> <pr> [--skip-human] [--force] [--no-post]
                   [--fixtures DIR] [--dry-run]
-harness-pr-review doctor
+dut-ai-pr-review doctor
 """
 import argparse
 import importlib.metadata
@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 
+from src import DIST_NAME
 from src.config import PROVIDERS, load_config
 from src.gh import gh_available, run_gh
 from src.claims import all_inferred
@@ -89,34 +90,14 @@ def _doctor() -> int:
         print("· autoreview.yml not found (optional — only needed for auto review)")
 
     if ok:
-        print("\nReady. Run: harness-pr-review owner/repo 123")
-        print("Web dashboard: harness-pr-review web  →  http://127.0.0.1:6789")
+        print("\nReady. Run: dut-ai-pr-review owner/repo 123")
     return 0 if ok else 1
-
-
-def _web() -> int:
-    """Launch the web dashboard on 127.0.0.1:6789."""
-    try:
-        import uvicorn
-    except ModuleNotFoundError:
-        print("Web dashboard requires the 'web' extras. "
-              "Reinstall with:\n"
-              "  pip install -U 'deepseek-harness-pr-review[web] @ "
-              "git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git'\n"
-              "(or re-run the one-liner installer, which includes them)",
-              file=sys.stderr)
-        return 1
-
-    from web.server import app
-
-    uvicorn.run(app, host="127.0.0.1", port=6789)
-    return 0
 
 
 def _load_or_skip(name: str, session_dir: Path, force: bool) -> dict | list | None:
     path = session_dir / name
     if path.exists() and not force:
-        return json.loads(path.read_text())
+        return json.loads(path.read_text(encoding="utf-8"))
     return None
 
 
@@ -129,7 +110,9 @@ def _write_failed_report(session_dir: Path, error: Exception) -> None:
         f"- Existing artifacts: {[p.name for p in sorted(session_dir.iterdir()) if p.is_file()]}",
         "",
     ]
-    (session_dir / "report.md").write_text("\n".join(lines))
+    (session_dir / "report.md").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )
 
 
 def _post_round_ping(owner: str, repo: str, num: int, snapshot: dict,
@@ -157,7 +140,9 @@ def _post_round_ping(owner: str, repo: str, num: int, snapshot: dict,
 def _read_rounds(session_dir: Path) -> int | None:
     """Current review-round count, or None if unknown/unreadable."""
     try:
-        return int((session_dir / "rounds.txt").read_text().strip())
+        return int(
+            (session_dir / "rounds.txt").read_text(encoding="utf-8").strip()
+        )
     except (OSError, ValueError):
         return None
 
@@ -166,10 +151,10 @@ def _bump_rounds(session_dir: Path) -> None:
     """Increment the review-round counter for a session (after a verify pass)."""
     path = session_dir / "rounds.txt"
     try:
-        current = int(path.read_text().strip() or "0")
+        current = int(path.read_text(encoding="utf-8").strip() or "0")
     except (OSError, ValueError):
         current = 0
-    path.write_text(str(current + 1))
+    path.write_text(str(current + 1), encoding="utf-8")
 
 
 def _phase(step: int, title: str, detail: str = "") -> None:
@@ -237,7 +222,7 @@ def _release_review_lock(session_dir: Path) -> None:
 def _version() -> int:
     """Print the installed version."""
     try:
-        ver = importlib.metadata.version("deepseek-harness-pr-review")
+        ver = importlib.metadata.version(DIST_NAME)
     except importlib.metadata.PackageNotFoundError:
         ver = "dev (not installed via pip)"
     print(ver)
@@ -249,30 +234,29 @@ def _update() -> int:
     import subprocess
 
     try:
-        old = importlib.metadata.version("deepseek-harness-pr-review")
+        old = importlib.metadata.version(DIST_NAME)
     except importlib.metadata.PackageNotFoundError:
         old = "dev (not installed via pip)"
     print(f"Current version: {old}")
     print("Updating from GitHub...")
     proc = subprocess.run(
         [sys.executable, "-m", "pip", "install", "-U",
-         "deepseek-harness-pr-review[web] @ "
+         "dut-ai-pr-preview-system @ "
          "git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git"],
         capture_output=True, text=True)
     if proc.returncode != 0:
         print(f"Update failed:\n{proc.stderr[-2000:]}", file=sys.stderr)
         return 1
     try:
-        new = importlib.metadata.version("deepseek-harness-pr-review")
+        new = importlib.metadata.version(DIST_NAME)
     except importlib.metadata.PackageNotFoundError:
         new = "?"
     print(f"Updated: {old} → {new}")
-    print("Note: restart a running web dashboard to pick up the new code.")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="harness-pr-review")
+    parser = argparse.ArgumentParser(prog="dut-ai-pr-review")
     parser.add_argument("pr", nargs="?", help="<owner>/<repo> <pr-number> or owner/repo#n")
     parser.add_argument("number", nargs="?", type=int,
                         help="PR number (omit if pr = owner/repo#n)")
@@ -294,7 +278,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("doctor", nargs="?",
                         help="check readiness (Python, gh, agent backend)")
     parser.add_argument("update", nargs="?", help="self-update from GitHub")
-    parser.add_argument("web", nargs="?", help="open the web dashboard at http://127.0.0.1:6789")
     args = parser.parse_args(argv)
 
     if args.version:
@@ -303,8 +286,6 @@ def main(argv: list[str] | None = None) -> int:
         return _doctor()
     if args.update == "update" or args.pr == "update":
         return _update()
-    if args.web == "web" or args.pr == "web":
-        return _web()
     if args.pr is None:
         parser.print_help()
         return 2
@@ -321,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             owner, repo, pr_num = parse_pr(args.pr)
         num = str(pr_num)
     except ValueError as e:
-        print(f"usage: harness-pr-review <owner>/<repo> <pr-number> "
+        print(f"usage: dut-ai-pr-review <owner>/<repo> <pr-number> "
               f"(or GitHub URL / owner/repo#n)", file=sys.stderr)
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -362,8 +343,12 @@ def main(argv: list[str] | None = None) -> int:
                 if not src.exists():
                     print(f"missing fixture: {src}", file=sys.stderr)
                     return 2
-                (session_dir / name).write_text(src.read_text())
-            findings = json.loads((session_dir / "findings.json").read_text())
+                (session_dir / name).write_text(
+                    src.read_text(encoding="utf-8"), encoding="utf-8"
+                )
+            findings = json.loads(
+                (session_dir / "findings.json").read_text(encoding="utf-8")
+            )
         else:
             from src.snapshot import build_snapshot
             from src.claims import extract_claims
@@ -391,7 +376,8 @@ def main(argv: list[str] | None = None) -> int:
                 findings = run_verify(cfg.phase_cfg(), workspace, session_dir,
                                       snapshot, claims)
                 (session_dir / "findings.json").write_text(
-                    json.dumps(findings, indent=2))
+                    json.dumps(findings, indent=2), encoding="utf-8"
+                )
                 _bump_rounds(session_dir)
 
         _phase(5, "report", f"{len(findings.get('claims', []))} claims, "
@@ -402,8 +388,12 @@ def main(argv: list[str] | None = None) -> int:
             answers = run_gate(findings, session_dir,
                                interactive=not args.skip_human)
 
-        snapshot = json.loads((session_dir / "snapshot.json").read_text())
-        claims = json.loads((session_dir / "claims.json").read_text())
+        snapshot = json.loads(
+            (session_dir / "snapshot.json").read_text(encoding="utf-8")
+        )
+        claims = json.loads(
+            (session_dir / "claims.json").read_text(encoding="utf-8")
+        )
         report = build_report(snapshot, claims, findings, answers, session_dir)
         print(f"Report: {session_dir / 'report.md'}")
 

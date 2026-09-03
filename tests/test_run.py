@@ -279,67 +279,24 @@ def test_update_command(monkeypatch, capsys):
     assert code == 0
     assert calls[0][0] == "python" or "pip" in str(calls[0])
     assert "install" in calls[0]
-    assert "deepseek-harness-pr-review[web] @ git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git" in " ".join(calls[0])
+    assert "dut-ai-pr-preview-system @ git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git" in " ".join(calls[0])
     assert "Updated" in capsys.readouterr().out
-
-
-def test_web_command_starts_uvicorn(monkeypatch):
-    started = {}
-    import sys
-
-    fake_uvicorn = type("U", (), {
-        "run": lambda app, host, port: started.update(
-            {"host": host, "port": port})})
-    monkeypatch.setitem(sys.modules, "uvicorn", fake_uvicorn)
-
-    code = main(["web"])
-    assert code == 0
-    assert started == {"host": "127.0.0.1", "port": 6789}
-
-
-def test_web_command_missing_uvicorn(monkeypatch, capsys):
-    import sys as _sys
-
-    class NoUvicorn:
-        def find_module(self, name, path=None):
-            if name == "uvicorn":
-                raise ImportError
-            return None
-
-    monkeypatch.setitem(_sys.modules, "uvicorn", None)
-    monkeypatch.delitem(_sys.modules, "uvicorn", raising=False)
-    # force import failure bằng cách xóa khỏi sys.modules và chặn
-    import builtins
-    real_import = builtins.__import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "uvicorn":
-            raise ModuleNotFoundError("No module named 'uvicorn'")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    code = main(["web"])
-    assert code == 1
-    assert "web" in capsys.readouterr().err
 
 
 def test_main_reclaims_stale_review_lock(tmp_path, monkeypatch):
     """Lock của review đã crash (PID chết) → thu hồi, không kẹt PR vĩnh viễn."""
-    import os
-
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
     monkeypatch.setenv("DSH_SESSION_ROOT", str(tmp_path / "sessions"))
     monkeypatch.setattr("src.run.gh_available", lambda: True)
+    monkeypatch.setattr("src.run.review_lock_alive", lambda lock: False)
     monkeypatch.setattr("builtins.input", lambda prompt: "n")
 
     session_dir = tmp_path / "sessions" / "demo" / "app" / "pr-7"
     session_dir.mkdir(parents=True)
-    dead = os.fork()
-    if dead == 0:
-        os._exit(0)
-    os.waitpid(dead, 0)  # PID chắc chắn đã chết
     (session_dir / "review.lock").write_text(
-        json.dumps({"pid": dead, "started_at": "2026-08-17T00:00:00"}))
+        json.dumps({"pid": 99999999, "started_at": "2026-08-17T00:00:00"}),
+        encoding="utf-8",
+    )
 
     fake_snapshot = {"owner": "demo", "repo": "app", "pr": 7, "title": "T",
                      "body": "B", "author": "a", "base": "main", "head": "x",
@@ -348,11 +305,15 @@ def test_main_reclaims_stale_review_lock(tmp_path, monkeypatch):
                      "unresolved_questions": []}
 
     def fake_build_snapshot(owner, repo, n, session_dir, gh=None):
-        (session_dir / "snapshot.json").write_text(json.dumps(fake_snapshot))
+        (session_dir / "snapshot.json").write_text(
+            json.dumps(fake_snapshot), encoding="utf-8"
+        )
         return fake_snapshot
 
     def fake_extract_claims(snapshot, cfg, session_dir, chat=None):
-        (session_dir / "claims.json").write_text(json.dumps([]))
+        (session_dir / "claims.json").write_text(
+            json.dumps([]), encoding="utf-8"
+        )
         return []
 
     monkeypatch.setattr("src.snapshot.build_snapshot", fake_build_snapshot)

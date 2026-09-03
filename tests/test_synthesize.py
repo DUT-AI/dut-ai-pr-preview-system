@@ -42,6 +42,7 @@ def test_build_report_vn(tmp_path):
 def test_build_comment_en_has_marker_and_verdict():
     comment = build_comment(SNAPSHOT, CLAIMS, FINDINGS, ANSWERS)
     assert "<!-- harness-pr-review -->" in comment
+    assert "## DUT AI PR Review" in comment
     assert "PASS" in comment
     assert "docs/payment.md" in comment
     assert "STILL_VALID" in comment
@@ -375,8 +376,7 @@ def test_verdict_label_is_singular_for_one_claim():
 
 
 def test_report_and_comment_agree_on_the_verdict_text(tmp_path):
-    """The dashboard, the comment and the report must never disagree."""
-    from web.metrics import _verdict_key  # noqa: F401  (key shape is separate)
+    """The comment and persisted report must never disagree."""
     from src.synthesize import _overall_verdict, verdict_label
 
     findings = {"claims": [{"id": "C1", "status": "PASS", "evidence": [], "note": ""},

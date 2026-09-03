@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import subprocess
 
 import pytest
@@ -345,6 +346,66 @@ def test_verify_reports_a_failed_agent_in_the_log(tmp_path, capsys):
 
 
 # --- agent backend selection ------------------------------------------------
+
+def test_deepseek_runner_uses_current_sdk_profile_contract(tmp_path, monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from src.verify import _run_agent
+
+    captured = {}
+
+    class Harness:
+        def __init__(self, **kwargs):
+            captured["kwargs"] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def run(self, prompt, *, session_id):
+            captured.update(prompt=prompt, session_id=session_id)
+            return SimpleNamespace(final_response=(
+                '```json\n{"docs": [], "unresolved_questions": []}\n```'
+            ))
+
+    monkeypatch.setitem(
+        sys.modules, "deepseek_harness", SimpleNamespace(DeepSeekHarness=Harness)
+    )
+    workspace, session_dir = tmp_path / "workspace", tmp_path / "session"
+    workspace.mkdir()
+    task = {"name": "docs", "out": "findings-docs.json", "prompt": "review docs"}
+
+    response = _run_agent(
+        {"model": "model", "base_url": "https://llm.example/v1", "api_key": "key"},
+        workspace,
+        session_dir,
+        task,
+    )
+    assert response.startswith("```json")
+    assert json.loads((workspace / "findings-docs.json").read_text()) == {
+        "docs": [], "unresolved_questions": []
+    }
+
+    options = captured["kwargs"]
+    assert options["profile"] == "sdk-minimal"
+    assert options["dsh_home"] == str(session_dir / "harness-docs")
+    assert Path(options["patches"][0]).name == "minimal.cordis.yml"
+    assert Path(options["patches"][0]).parent.name == "cordis"
+    assert options["env"]["DSH_CWD"] == str(workspace)
+    assert options["env"]["DSH_SESSION_ROOT"] == str(
+        session_dir / "harness-sessions"
+    )
+    assert options["env"]["HOME"] == str(session_dir / "harness-docs" / "home")
+    assert options["env"]["XDG_CACHE_HOME"] == str(
+        session_dir / "harness-docs" / "cache"
+    )
+    assert str(workspace.resolve()) in captured["prompt"]
+    assert "Do not read or write outside that root" in captured["prompt"]
+    assert captured["session_id"].startswith("verify-docs-")
+
 
 def test_select_runner_defaults_to_the_sdk_backend():
     from src.verify import RUNNERS, select_runner

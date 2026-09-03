@@ -1,0 +1,11 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+**/__pycache__
+**/*.pyc
+.env
+secrets
+sessions
+.ask

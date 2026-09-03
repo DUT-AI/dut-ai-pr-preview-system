@@ -19,6 +19,7 @@ the reply text for the session log.
 import json
 import subprocess
 import sys
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -248,7 +249,7 @@ def read_part(path: Path, keys: tuple) -> dict:
     if not path.exists():
         raise RuntimeError(f"{path.name} does not exist (agent did not write it)")
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise RuntimeError(f"{path.name} is not valid JSON: {e}") from e
     if not isinstance(data, dict):
@@ -262,16 +263,51 @@ def read_part(path: Path, keys: tuple) -> dict:
 def _run_agent(cfg: dict, workspace: Path, session_dir: Path, task: dict) -> str:
     from deepseek_harness import DeepSeekHarness  # import trễ (SDK nặng)
 
+    cordis_patch = Path(__file__).resolve().parents[1] / "cordis/minimal.cordis.yml"
+    harness_home = session_dir / f"harness-{task['name']}"
+    harness_user_home = harness_home / "home"
+    harness_cache = harness_home / "cache"
+    harness_cache.mkdir(parents=True, exist_ok=True)
+    harness_user_home.mkdir(parents=True, exist_ok=True)
+    prompt = (
+        f"Trusted review workspace root: {workspace.resolve()}\n"
+        "Use absolute paths under that root when calling file tools. "
+        "Do not read or write outside that root.\n\n"
+        f"{task['prompt']}"
+    )
     with DeepSeekHarness(
         provider="deepseek-official",
         model=cfg["model"],
         max_tokens=49_152,
+        base_url=cfg.get("base_url") or None,
+        api_key=cfg.get("api_key") or None,
         cwd=str(workspace),
-        session_root=str(session_dir),
-        cordis=str(Path("cordis/minimal.cordis.yml").resolve()),
+        dsh_home=str(harness_home),
+        profile="sdk-minimal",
+        patches=(str(cordis_patch),),
+        env={
+            "DSH_CWD": str(workspace),
+            "DSH_SESSION_ROOT": str(session_dir / "harness-sessions"),
+            "DSH_MODEL": cfg["model"],
+            "HOME": str(harness_user_home),
+            "XDG_CACHE_HOME": str(harness_cache),
+        },
     ) as harness:
-        result = harness.run(task["prompt"], session_id=f"verify-{task['name']}")
-    return result.final_response
+        result = harness.run(
+            prompt,
+            session_id=f"verify-{task['name']}-{uuid.uuid4().hex}",
+        )
+    response = result.final_response
+    out = workspace / task["out"]
+    if not out.exists():
+        # A tool-free/minimal profile may answer with the requested JSON
+        # inline. Preserve the same safe fallback used by the Claude backend.
+        from src.claude_cli import extract_json_object
+
+        salvaged = extract_json_object(response)
+        if salvaged is not None:
+            out.write_text(salvaged, encoding="utf-8")
+    return response
 
 
 def _run_agent_claude(cfg: dict, workspace: Path, session_dir: Path,
@@ -301,7 +337,7 @@ def _run_agent_claude(cfg: dict, workspace: Path, session_dir: Path,
     if not out.exists():
         salvaged = claude_cli.extract_json_object(response)
         if salvaged is not None:
-            out.write_text(salvaged)
+            out.write_text(salvaged, encoding="utf-8")
     return response
 
 
@@ -348,7 +384,9 @@ def _execute(cfg: dict, workspace: Path, session_dir: Path, task: dict,
                 print(f"      {task['name']}: waited {queued:.0f}s for an agent slot",
                       flush=True)
             response = runner(cfg, workspace, session_dir, task)
-        (session_dir / f"agent-log-{task['name']}.txt").write_text(response or "")
+        (session_dir / f"agent-log-{task['name']}.txt").write_text(
+            response or "", encoding="utf-8"
+        )
         part = read_part(workspace / task["out"], task["keys"])
         counts = ", ".join(f"{len(part[k])} {k}" for k in task["keys"]
                            if k != "unresolved_questions")
@@ -422,7 +460,7 @@ def parse_findings(path: Path) -> dict:
     if not path.exists():
         raise RuntimeError(f"invalid findings: {path} does not exist (agent did not write findings.json)")
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         raise RuntimeError(f"invalid findings: {e}") from e
     _validate_findings(data)

@@ -120,7 +120,7 @@ def rank_docs(workspace: Path, snapshot: dict, claims: list[dict] | None = None,
         if rel in changed:
             continue
         try:
-            text = path.read_text(errors="replace")
+            text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
 

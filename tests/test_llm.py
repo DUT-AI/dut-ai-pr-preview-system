@@ -14,6 +14,7 @@ class _Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
         _Handler.captured["body"] = body
+        _Handler.captured["user_agent"] = self.headers.get("User-Agent")
         response = {"choices": [{"message": {"content": "hello"}}]}
         data = json.dumps(response).encode()
         self.send_response(200)
@@ -42,6 +43,10 @@ def test_chat_ok(server):
     assert out == "hello"
     assert _Handler.captured["body"]["model"] == "m"
     assert _Handler.captured["body"]["messages"][0]["content"] == "hi"
+    assert _Handler.captured["body"]["chat_template_kwargs"] == {
+        "enable_thinking": False
+    }
+    assert _Handler.captured["user_agent"] == "dut-ai-pr-preview-system/1.4"
 
 
 class _FlakyHandler(BaseHTTPRequestHandler):

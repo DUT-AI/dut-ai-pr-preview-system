@@ -16,6 +16,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from src.process_control import (process_group_options, process_is_alive,
+                                 stop_process_tree)
+
 # Exit codes run.py never returns, so callers can tell these apart from a
 # review that ran and failed on its own terms.
 EXIT_TIMEOUT = 124  # same convention as timeout(1)
@@ -34,18 +37,12 @@ def review_lock_alive(lock: Path) -> bool:
     disagree about what "a review is running" means.
     """
     try:
-        pid = int(json.loads(lock.read_text()).get("pid", 0))
+        pid = int(json.loads(lock.read_text(encoding="utf-8")).get("pid", 0))
     except (ValueError, OSError, AttributeError):
         return False
     if pid <= 0:
         return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
+    return process_is_alive(pid)
 
 
 def build_argv(owner: str, repo: str, n: int, *, force: bool = True,
@@ -93,20 +90,22 @@ def run_review(owner: str, repo: str, n: int, *, session_root: Path,
     log_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with open(log_path, "w", buffering=1) as logf:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 cmd, stdout=logf, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
                 cwd=str(cwd or Path.cwd()), env=env,
-                timeout=timeout_seconds)
-        return proc.returncode
-    except subprocess.TimeoutExpired:
-        # subprocess.run has already killed the child. Its review.lock is left
-        # behind holding a dead PID, which _acquire_review_lock reclaims on the
-        # next attempt — that is exactly the stale-lock path, not a leak.
-        with open(log_path, "a") as logf:
-            logf.write(f"\n[harness] review timed out after "
-                       f"{timeout_seconds}s and was killed\n")
-        return EXIT_TIMEOUT
+                **process_group_options())
+            try:
+                return proc.wait(timeout=timeout_seconds)
+            except subprocess.TimeoutExpired:
+                logf.write(f"\n[harness] review timed out after "
+                           f"{timeout_seconds}s; stopping process tree\n")
+                stop_process_tree(proc)
+                return EXIT_TIMEOUT
+            except BaseException:
+                logf.write("\n[harness] interrupted; stopping process tree\n")
+                stop_process_tree(proc)
+                raise
     except OSError as e:
         with open(log_path, "a") as logf:
             logf.write(f"\n[harness] could not start review process: {e}\n")

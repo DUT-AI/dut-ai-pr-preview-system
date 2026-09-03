@@ -1,0 +1,27 @@
+services:
+  web:
+    build:
+      target: development
+    command:
+      - uvicorn
+      - app.server.controller:create_app
+      - --factory
+      - --reload
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      SESSION_COOKIE_SECURE: "false"
+    volumes:
+      - ./app:/app/app
+      - ./src:/app/src
+      - ./cordis:/app/cordis
+
+  worker:
+    build:
+      target: development
+    volumes:
+      - ./app:/app/app
+      - ./src:/app/src
+      - ./cordis:/app/cordis
