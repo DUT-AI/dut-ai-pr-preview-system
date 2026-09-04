@@ -83,10 +83,16 @@ def create_app(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse(result, status_code=202 if result.get("queued") else 200)
 
+    @app.get("/", response_class=HTMLResponse)
+    def landing(request: Request):
+        return templates.TemplateResponse(request, "landing.html", {
+            "current_user": _user(request, config),
+        })
+
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request):
         if _user(request, config):
-            return RedirectResponse("/", status_code=303)
+            return RedirectResponse("/dashboard", status_code=303)
         token = new_csrf_token()
         response = templates.TemplateResponse(request, "login.html", {
             "username": config.admin_username, "csrf": token,
@@ -104,7 +110,7 @@ def create_app(
         )
         if not valid:
             raise HTTPException(status_code=401, detail="invalid credentials")
-        response = RedirectResponse("/", status_code=303)
+        response = RedirectResponse("/dashboard", status_code=303)
         response.set_cookie(
             SESSION_COOKIE, sign_session(config.admin_username, config.session_secret),
             httponly=True, secure=config.session_secure, samesite="strict",
@@ -123,7 +129,7 @@ def create_app(
         response.delete_cookie(CSRF_COOKIE)
         return response
 
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request):
         _require_user(request, config)
         token = new_csrf_token()

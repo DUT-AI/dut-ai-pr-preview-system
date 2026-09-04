@@ -1,9 +1,13 @@
 services:
   postgres:
+    env_file:
+      - ${APP_ENV_FILE:-.env.local}
     ports:
       - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_EXTERNAL_PORT:-3637}:${POSTGRES_INTERNAL_PORT:-5432}"
 
   web:
+    env_file:
+      - ${APP_ENV_FILE:-.env.local}
     build:
       target: development
     command:
@@ -23,6 +27,8 @@ services:
       - ./cordis:/app/cordis
 
   worker:
+    env_file:
+      - ${APP_ENV_FILE:-.env.local}
     build:
       target: development
     volumes:

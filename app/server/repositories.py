@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import time
 import zipfile
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from app.server.config import ServerConfig, validate_repo
 from app.server.models import ReviewJob, ReviewOutput
 from src.snapshot import ISSUE_BODY_MAX
 from src.synthesize import MARKER
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubAppClient:
@@ -68,20 +71,41 @@ class GitHubAppClient:
     def installation_token(self) -> str:
         if self._token and time.time() < self._token_expires_at - 60:
             return self._token
+        start = time.monotonic()
+        logger.info(
+            "github app token request start installation=%s",
+            self.config.github_installation_id,
+        )
         with self._client(self._app_jwt()) as client:
             response = client.post(
                 f"/app/installations/{self.config.github_installation_id}/access_tokens"
             )
             response.raise_for_status()
             data = response.json()
+        logger.info(
+            "github app token request ok installation=%s status=%s elapsed_ms=%s",
+            self.config.github_installation_id, response.status_code,
+            int((time.monotonic() - start) * 1000),
+        )
         self._token = data["token"]
         expires = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
         self._token_expires_at = expires.astimezone(timezone.utc).timestamp()
         return self._token
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        start = time.monotonic()
+        logger.info("github request start method=%s path=%s", method, path)
         with self._client(self.installation_token()) as client:
-            response = client.request(method, path, **kwargs)
+            try:
+                response = client.request(method, path, **kwargs)
+            except Exception:
+                logger.exception("github request failed method=%s path=%s", method, path)
+                raise
+            elapsed_ms = int((time.monotonic() - start) * 1000)
+            logger.info(
+                "github request complete method=%s path=%s status=%s elapsed_ms=%s",
+                method, path, response.status_code, elapsed_ms,
+            )
             if response.is_error:
                 accepted = response.headers.get(
                     "X-Accepted-GitHub-Permissions", "unspecified"
@@ -114,11 +138,25 @@ class GitHubAppClient:
     def installation(self) -> dict[str, Any]:
         # This is an App-level endpoint. GitHub rejects an installation access
         # token here even though that token is correct for repository APIs.
+        start = time.monotonic()
+        logger.info(
+            "github installation request start installation=%s",
+            self.config.github_installation_id,
+        )
         with self._client(self._app_jwt()) as client:
-            response = client.get(
-                f"/app/installations/{self.config.github_installation_id}"
-            )
+            path = f"/app/installations/{self.config.github_installation_id}"
+            try:
+                response = client.get(path)
+            except Exception:
+                logger.exception("github installation request failed path=%s", path)
+                raise
             response.raise_for_status()
+            logger.info(
+                "github installation request ok installation=%s status=%s "
+                "elapsed_ms=%s",
+                self.config.github_installation_id, response.status_code,
+                int((time.monotonic() - start) * 1000),
+            )
             return response.json()
 
     def repositories(self) -> list[dict[str, Any]]:
@@ -174,10 +212,17 @@ class GitHubAppClient:
             raise PermissionError(f"repository is not allowlisted: {repository}")
         owner, repo = repository.split("/", 1)
         prefix = f"/repos/{owner}/{repo}/pulls/{pr_number}"
+        logger.info("github snapshot start repository=%s pr=%s", repository, pr_number)
         meta = self._request("GET", prefix).json()
         files = self._get_pages(prefix + "/files")
         commits = self._get_pages(prefix + "/commits")
         threads, issues = self._graphql_context(owner, repo, pr_number)
+        logger.info(
+            "github snapshot ok repository=%s pr=%s files=%s commits=%s "
+            "threads=%s issues=%s",
+            repository, pr_number, len(files), len(commits), len(threads),
+            len(issues),
+        )
         return {
             "owner": owner, "repo": repo, "pr": pr_number,
             "title": meta.get("title") or "", "body": meta.get("body") or "",
@@ -209,6 +254,10 @@ class GitHubAppClient:
         repository = validate_repo(repository)
         if repository not in self.config.allowed_repositories:
             raise PermissionError(f"repository is not allowlisted: {repository}")
+        logger.info(
+            "github archive download start repository=%s ref=%s",
+            repository, ref[:10],
+        )
         response = self._request("GET", f"/repos/{repository}/zipball/{ref}")
         target.mkdir(parents=True, exist_ok=True)
         root = target.resolve()
@@ -218,6 +267,7 @@ class GitHubAppClient:
             if len(prefixes) != 1:
                 raise RuntimeError("GitHub archive has an unexpected layout")
             prefix = next(iter(prefixes)) + "/"
+            files_written = 0
             for item in members:
                 relative = item.filename.removeprefix(prefix)
                 if not relative:
@@ -230,6 +280,11 @@ class GitHubAppClient:
                     continue
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes(archive.read(item))
+                files_written += 1
+        logger.info(
+            "github archive download ok repository=%s ref=%s files=%s target=%s",
+            repository, ref[:10], files_written, target,
+        )
 
     def publish_preview(
         self, repository: str, pr_number: int, head_sha: str, body: str

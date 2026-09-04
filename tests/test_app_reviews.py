@@ -105,7 +105,24 @@ def test_process_one_job_persists_failure(tmp_path):
         config(tmp_path), store, GitHub(), FailedEngine(), lease_id="worker-1"
     )
     assert store.completed is None
-    assert store.failed[1] == "model failed"
+    assert store.failed[1] == "review engine failed: model failed"
+    assert store.failed_retry is True
+
+
+def test_process_one_job_persists_github_snapshot_phase(tmp_path):
+    class FailedGitHub(GitHub):
+        def snapshot(self, repository, pr_number):
+            raise OSError("network unreachable")
+
+        def download_workspace(self, repository, ref, target):
+            pytest.fail("snapshot failures must stop before download")
+
+    store = Store()
+    assert process_one_job(
+        config(tmp_path), store, FailedGitHub(), Engine(), lease_id="worker-1"
+    )
+    assert store.completed is None
+    assert store.failed[1] == "github snapshot failed: network unreachable"
     assert store.failed_retry is True
 
 

@@ -22,16 +22,30 @@ def run(request_path: Path, result_path: Path) -> None:
         # endpoint. A real provider secret is rejected before this process.
         "api_key": os.environ.get("DEEPSEEK_API_KEY", ""),
     }
+
+    print("[engine] Phase 1/4: Starting claims extraction...", flush=True)
     claims = extract_claims(snapshot, cfg, session_dir)
+    print(f"[engine] Phase 1/4 completed. Extracted {len(claims)} claims.", flush=True)
+
+    print("[engine] Phase 2/4: Starting agents verification...", flush=True)
     findings = run_verify(cfg, workspace, session_dir, snapshot, claims)
     (session_dir / "findings.json").write_text(
         json.dumps(findings, indent=2), encoding="utf-8"
     )
+    print("[engine] Phase 2/4 completed.", flush=True)
+
+    print("[engine] Phase 3/4: Synthesizing report...", flush=True)
     report = build_report(snapshot, claims, findings, [], session_dir)
+    print("[engine] Phase 3/4 completed.", flush=True)
+
+    print("[engine] Phase 4/4: Generating preview comment...", flush=True)
     preview = build_comment(snapshot, claims, findings, [], report_content=report)
+    print("[engine] Phase 4/4 completed.", flush=True)
+
     result_path.write_text(json.dumps({
         "findings": findings, "report": report, "preview_comment": preview,
     }), encoding="utf-8")
+    print("[engine] Review engine completed successfully.", flush=True)
 
 
 def main() -> None:

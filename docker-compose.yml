@@ -3,7 +3,7 @@ name: ${COMPOSE_PROJECT_NAME:-dut-ai-pr-preview}
 services:
   postgres:
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env}
     image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     command:
       - postgres
@@ -27,7 +27,7 @@ services:
 
   web:
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env}
     build:
       context: .
       target: production
@@ -67,7 +67,7 @@ services:
 
   worker:
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env}
     build:
       context: .
       target: production

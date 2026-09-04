@@ -211,19 +211,26 @@ def extract_claims(snapshot: dict, cfg: dict, session_dir: Path,
     chat = chat or select_chat(cfg.get("provider"))
     claims: list[dict] = []
     if not description_is_thin(snapshot):
+        print("[claims] PR description is usable. Extracting stated claims...", flush=True)
         description = f"# Title: {snapshot['title']}\n\n{snapshot['body']}"
         file_names = [f["filename"] for f in snapshot.get("files", [])]
         claims = _run_pass(
             SCHEMA_HINT,
             f"Description:\n{description}\n\nFiles changed:\n{file_names}",
             cfg, "stated", chat)
+        if claims:
+            print(f"[claims] Successfully extracted {len(claims)} stated claims.", flush=True)
+        else:
+            print("[claims] Stated pass found nothing verifiable.", flush=True)
 
     if not claims:
+        print("[claims] Falling back to inferred claims from diff/evidence...", flush=True)
         claims = _run_pass(
             INFERRED_HINT,
             f"Evidence of intent:\n{intent_signals(snapshot)}\n\n"
             f"Diff:\n{diff_digest(snapshot)}",
             cfg, "inferred", chat)
+        print(f"[claims] Successfully extracted {len(claims)} inferred claims.", flush=True)
 
     session_dir.mkdir(parents=True, exist_ok=True)
     (session_dir / "claims.json").write_text(

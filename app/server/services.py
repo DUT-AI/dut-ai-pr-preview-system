@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import tempfile
 import threading
@@ -13,6 +14,11 @@ from app.server.config import ServerConfig, validate_repo
 _ACTIONS = {"opened", "reopened", "synchronize", "ready_for_review"}
 _DELIVERY_RE = re.compile(r"^[A-Za-z0-9-]{1,100}$")
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
+logger = logging.getLogger(__name__)
+
+
+def _short_sha(value: str) -> str:
+    return value[:10] if value else "-"
 
 def ingest_webhook(
     body: bytes, headers: Mapping[str, str], config: ServerConfig, store
@@ -51,6 +57,12 @@ def ingest_webhook(
     queued = store.record_delivery_and_enqueue(
         delivery_id, event, action, payload, repository, pr_number, head_sha
     )
+    logger.info(
+        "webhook accepted event=%s action=%s delivery=%s repository=%s pr=%s "
+        "head=%s queued=%s",
+        event, action, delivery_id, repository, pr_number, _short_sha(head_sha),
+        queued,
+    )
     return {"accepted": True, "queued": queued, "duplicate": not queued}
 
 HEARTBEAT_SECONDS = 10
@@ -72,6 +84,12 @@ def process_one_job(
     job = store.claim_job(lease_id)
     if job is None:
         return False
+    phase = "claimed"
+    logger.info(
+        "job claimed id=%s repository=%s pr=%s head=%s attempt=%s",
+        job.id, job.repository, job.pr_number, _short_sha(job.head_sha),
+        job.attempt,
+    )
     heartbeat_stop = threading.Event()
     heartbeat = threading.Thread(
         target=_heartbeat, args=(store, job, heartbeat_stop),
@@ -79,8 +97,23 @@ def process_one_job(
     )
     heartbeat.start()
     try:
+        phase = "github snapshot"
+        logger.info(
+            "job phase start id=%s phase=%s repository=%s pr=%s",
+            job.id, phase, job.repository, job.pr_number,
+        )
         snapshot = github.snapshot(job.repository, job.pr_number)
+        logger.info(
+            "job phase ok id=%s phase=%s head=%s files=%s commits=%s",
+            job.id, phase, _short_sha(snapshot.get("head_sha", "")),
+            len(snapshot.get("files", [])), len(snapshot.get("commits", [])),
+        )
         if snapshot["head_sha"] != job.head_sha:
+            logger.warning(
+                "job stale id=%s queued_head=%s current_head=%s",
+                job.id, _short_sha(job.head_sha),
+                _short_sha(snapshot.get("head_sha", "")),
+            )
             store.fail_job(
                 job,
                 "queued head SHA is stale; a newer synchronize delivery should run",
@@ -91,20 +124,46 @@ def process_one_job(
         session_dir = (
             config.session_root / owner / repo / f"pr-{job.pr_number}" / job.head_sha
         ).resolve()
+        phase = "session prepare"
+        logger.info("job phase start id=%s phase=%s path=%s", job.id, phase, session_dir)
         session_dir.mkdir(parents=True, exist_ok=True)
         (session_dir / "snapshot.json").write_text(
             json.dumps(snapshot, indent=2), encoding="utf-8"
         )
+        logger.info("job phase ok id=%s phase=%s", job.id, phase)
         with tempfile.TemporaryDirectory(prefix="dut-ai-review-") as temp:
             workspace = Path(temp).resolve()
+            phase = "github workspace download"
+            logger.info(
+                "job phase start id=%s phase=%s repository=%s head=%s",
+                job.id, phase, job.repository, _short_sha(job.head_sha),
+            )
             github.download_workspace(job.repository, job.head_sha, workspace)
+            logger.info("job phase ok id=%s phase=%s path=%s", job.id, phase, workspace)
+            phase = "review engine"
+            logger.info(
+                "job phase start id=%s phase=%s session=%s",
+                job.id, phase, session_dir,
+            )
             output = engine.review(snapshot, workspace, session_dir)
+            logger.info(
+                "job phase ok id=%s phase=%s session=%s",
+                job.id, phase, output.session_path,
+            )
         store.complete_job(job, snapshot, output)
+        logger.info(
+            "job complete id=%s repository=%s pr=%s head=%s",
+            job.id, job.repository, job.pr_number, _short_sha(job.head_sha),
+        )
     except KeyboardInterrupt:
         store.interrupt_job(job, "worker interrupted by shutdown signal; retrying")
         raise
     except Exception as exc:  # worker boundary: persist failure, then continue
-        message = str(exc)
+        logger.exception(
+            "job failed id=%s phase=%s repository=%s pr=%s head=%s",
+            job.id, phase, job.repository, job.pr_number, _short_sha(job.head_sha),
+        )
+        message = f"{phase} failed: {exc}"
         for secret in (
             config.github_webhook_secret, config.session_secret, config.llm_api_key
         ):
