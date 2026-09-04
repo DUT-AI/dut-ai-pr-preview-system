@@ -28,7 +28,7 @@ GitHub webhook -> FastAPI app -> PostgreSQL job -> worker
 - `src/claims.py`, `src/verify.py`, `src/synthesize.py`: adapted upstream review
   logic used by the engine.
 - `docker-compose.yml`: production-like stack.
-- `compose.dev.yml`: development image, source mounts, and FastAPI reload.
+- `docker-compose.dev.yml`: development image, source mounts, and FastAPI reload.
 
 The removed legacy `web/` dashboard is not part of this architecture; `app/`
 is the only web application.
@@ -73,16 +73,15 @@ LLM, and review-policy sections. It includes both sides of every published port:
 
 | Setting | Default | Meaning |
 |---|---:|---|
-| `POSTGRES_EXTERNAL_PORT` | `5433` | PostgreSQL port on the Docker host |
+| `POSTGRES_EXTERNAL_PORT` | `3637` | PostgreSQL port on the Docker host |
 | `POSTGRES_INTERNAL_PORT` | `5432` | PostgreSQL port inside the Compose network |
-| `WEB_EXTERNAL_PORT` | `8000` | admin UI/API port on the Docker host |
+| `WEB_EXTERNAL_PORT` | `3636` | admin UI/API port on the Docker host |
 | `WEB_INTERNAL_PORT` | `8000` | FastAPI port inside the web container |
 
 PostgreSQL is reachable from the host at
-`POSTGRES_BIND_HOST:POSTGRES_EXTERNAL_PORT`; web and worker use
-`POSTGRES_HOST:POSTGRES_INTERNAL_PORT`. Both services receive a `DATABASE_URL`
-built by Compose from the explicit database name, user, password, host, and
-internal port. Use a URL-safe PostgreSQL password.
+`POSTGRES_BIND_HOST:POSTGRES_EXTERNAL_PORT`; web and worker use `DATABASE_URL`
+directly from `.env`. Keep it in sync with the explicit database name, user,
+password, host, and internal port. Use a URL-safe PostgreSQL password.
 
 Both database and web ports use the numeric loopback bind `127.0.0.1` required
 by Docker and are accessed through `localhost`. This publishes the ports without
@@ -118,12 +117,12 @@ docker run --rm dut-ai-pr-preview:dev python -m pytest -v
 After GitHub App credentials are filled, start the reload-enabled stack:
 
 ```bash
-docker compose -f docker-compose.yml -f compose.dev.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-With the defaults, the admin UI is available at `http://localhost:8000`.
+With the defaults, the admin UI is available at `http://localhost:3636`.
 Use `WEB_BIND_HOST` and `WEB_EXTERNAL_PORT` from `.env` when either value is
-changed. Development overrides the secure-cookie flag for local HTTP only.
+changed. Use `SESSION_COOKIE_SECURE=false` in `.env` for local HTTP.
 
 ## Docker deployment
 

@@ -60,6 +60,17 @@ def main() -> int:
         return existing.get(name) or os.environ.get(name) or default
 
     postgres_password = setting("POSTGRES_PASSWORD", secrets.token_hex(24))
+    postgres_db = setting("POSTGRES_DB", "dut_ai_pr_preview")
+    postgres_user = setting("POSTGRES_USER", "dut_ai")
+    postgres_host = setting("POSTGRES_HOST", "postgres")
+    postgres_internal_port = setting("POSTGRES_INTERNAL_PORT", "5432")
+    database_url = setting(
+        "DATABASE_URL",
+        (
+            f"postgresql://{postgres_user}:{postgres_password}@"
+            f"{postgres_host}:{postgres_internal_port}/{postgres_db}"
+        ),
+    )
     admin_password = setting("ADMIN_PASSWORD", secrets.token_urlsafe(18))
     admin_password_hash = setting("ADMIN_PASSWORD_HASH", "")
     if not admin_password_hash:
@@ -75,20 +86,21 @@ def main() -> int:
             "POSTGRESQL DATABASE",
             [
                 ("POSTGRES_IMAGE", setting("POSTGRES_IMAGE", "postgres:16-alpine")),
-                ("POSTGRES_DB", setting("POSTGRES_DB", "dut_ai_pr_preview")),
-                ("POSTGRES_USER", setting("POSTGRES_USER", "dut_ai")),
+                ("POSTGRES_DB", postgres_db),
+                ("POSTGRES_USER", postgres_user),
                 ("POSTGRES_PASSWORD", postgres_password),
-                ("POSTGRES_HOST", setting("POSTGRES_HOST", "postgres")),
+                ("POSTGRES_HOST", postgres_host),
                 ("POSTGRES_BIND_HOST", setting("POSTGRES_BIND_HOST", "127.0.0.1")),
-                ("POSTGRES_EXTERNAL_PORT", setting("POSTGRES_EXTERNAL_PORT", "5433")),
-                ("POSTGRES_INTERNAL_PORT", setting("POSTGRES_INTERNAL_PORT", "5432")),
+                ("POSTGRES_EXTERNAL_PORT", setting("POSTGRES_EXTERNAL_PORT", "3637")),
+                ("POSTGRES_INTERNAL_PORT", postgres_internal_port),
+                ("DATABASE_URL", database_url),
             ],
         ),
         (
             "WEB UI / API",
             [
                 ("WEB_BIND_HOST", setting("WEB_BIND_HOST", "127.0.0.1")),
-                ("WEB_EXTERNAL_PORT", setting("WEB_EXTERNAL_PORT", "8000")),
+                ("WEB_EXTERNAL_PORT", setting("WEB_EXTERNAL_PORT", "3636")),
                 ("WEB_INTERNAL_PORT", setting("WEB_INTERNAL_PORT", "8000")),
             ],
         ),
