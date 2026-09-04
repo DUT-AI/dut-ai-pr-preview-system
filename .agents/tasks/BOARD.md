@@ -23,6 +23,8 @@
 | WI-WIN-001 | INIT-02 | P1 | Tách DeepSeek dependency hoặc fail-fast rõ ràng trên Windows |
 | WI-WEB-001 | INIT-04 | P1 | Auth + CSRF trước khi expose dashboard ngoài loopback |
 | WI-OPS-001 | INIT-04 | P1 | Bootstrap manual/no-post với GitHub bot quyền tối thiểu |
+| [WI-OPS-002](WI-OPS-002.md) | INIT-04/05/08 | P0 | Runbook SSH server, gắn env/port, chạy Docker, kiểm webhook/UI và merge `dev1` vào `dev` khi được lệnh |
+| [WI-SPEC-001](WI-SPEC-001.md) | INIT-09 | P1 | Thêm contract `specs/` và trục review spec coverage/code–spec compliance có rubric versioned |
 | WI-REC-001 | INIT-05 | P2 | Thiết kế backup/restore session và recovery sau interrupted review |
 
 ## Done

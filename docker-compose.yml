@@ -1,0 +1,133 @@
+name: ${COMPOSE_PROJECT_NAME:-dut-ai-pr-preview}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    command:
+      - postgres
+      - -c
+      - port=${POSTGRES_INTERNAL_PORT:-5432}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_EXTERNAL_PORT:-5433}:${POSTGRES_INTERNAL_PORT:-5432}"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -h localhost -p ${POSTGRES_INTERNAL_PORT:-5432}
+          -U ${POSTGRES_USER:?POSTGRES_USER is required}
+          -d ${POSTGRES_DB:?POSTGRES_DB is required}
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: production
+    command:
+      - uvicorn
+      - app.server.controller:create_app
+      - --factory
+      - --host
+      - 0.0.0.0
+      - --port
+      - ${WEB_INTERNAL_PORT:-8000}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:-postgres}:${POSTGRES_INTERNAL_PORT:-5432}/${POSTGRES_DB:?POSTGRES_DB is required}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:?GITHUB_APP_ID is required}
+      GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?GITHUB_INSTALLATION_ID is required}
+      GITHUB_PRIVATE_KEY_PATH: ${GITHUB_PRIVATE_KEY_PATH:-/run/secrets/github-app.pem}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET is required}
+      GITHUB_ALLOWED_REPOSITORIES: ${GITHUB_ALLOWED_REPOSITORIES:-DUT-AI/dut-ai-pr-preview-system}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://llm2.dutai.site/v1}
+      LLM_MODEL: ${LLM_MODEL:-ggml-org/gemma-4-e4b-it-GGUF:Q4_0}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      PUBLISH_ENABLED: ${PUBLISH_ENABLED:-false}
+      DSH_SESSION_ROOT: ${DSH_SESSION_ROOT:-/data/sessions}
+    volumes:
+      - type: volume
+        source: sessions
+        target: ${DSH_SESSION_ROOT:-/data/sessions}
+      - type: bind
+        source: ${GITHUB_PRIVATE_KEY_FILE:-./secrets/github-app.pem}
+        target: ${GITHUB_PRIVATE_KEY_PATH:-/run/secrets/github-app.pem}
+        read_only: true
+    ports:
+      - "${WEB_BIND_HOST:-127.0.0.1}:${WEB_EXTERNAL_PORT:-8000}:${WEB_INTERNAL_PORT:-8000}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:${WEB_INTERNAL_PORT:-8000}/healthz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      target: production
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@${POSTGRES_HOST:-postgres}:${POSTGRES_INTERNAL_PORT:-5432}/${POSTGRES_DB:?POSTGRES_DB is required}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:?GITHUB_APP_ID is required}
+      GITHUB_INSTALLATION_ID: ${GITHUB_INSTALLATION_ID:?GITHUB_INSTALLATION_ID is required}
+      GITHUB_PRIVATE_KEY_PATH: ${GITHUB_PRIVATE_KEY_PATH:-/run/secrets/github-app.pem}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?GITHUB_WEBHOOK_SECRET is required}
+      GITHUB_ALLOWED_REPOSITORIES: ${GITHUB_ALLOWED_REPOSITORIES:-DUT-AI/dut-ai-pr-preview-system}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?ADMIN_PASSWORD_HASH is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://llm2.dutai.site/v1}
+      LLM_MODEL: ${LLM_MODEL:-ggml-org/gemma-4-e4b-it-GGUF:Q4_0}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      PUBLISH_ENABLED: ${PUBLISH_ENABLED:-false}
+      DSH_SESSION_ROOT: ${DSH_SESSION_ROOT:-/data/sessions}
+    volumes:
+      - type: volume
+        source: sessions
+        target: ${DSH_SESSION_ROOT:-/data/sessions}
+      - type: bind
+        source: ${GITHUB_PRIVATE_KEY_FILE:-./secrets/github-app.pem}
+        target: ${GITHUB_PRIVATE_KEY_PATH:-/run/secrets/github-app.pem}
+        read_only: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os; from app.server.repositories import PostgresStore;
+          raise SystemExit(0 if PostgresStore(os.environ['DATABASE_URL']).health() else 1)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  sessions:

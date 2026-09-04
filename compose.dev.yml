@@ -1,4 +1,8 @@
 services:
+  postgres:
+    ports:
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_EXTERNAL_PORT:-3637}:${POSTGRES_INTERNAL_PORT:-5432}"
+
   web:
     build:
       target: development
@@ -10,9 +14,11 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - "8000"
+      - ${WEB_INTERNAL_PORT:-8000}
     environment:
       SESSION_COOKIE_SECURE: "false"
+    ports:
+      - "${WEB_BIND_HOST:-127.0.0.1}:${WEB_EXTERNAL_PORT:-3636}:${WEB_INTERNAL_PORT:-8000}"
     volumes:
       - ./app:/app/app
       - ./src:/app/src

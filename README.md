@@ -27,7 +27,7 @@ GitHub webhook -> FastAPI app -> PostgreSQL job -> worker
 - `src/engine/`: secret-isolated subprocess gateway and engine runner.
 - `src/claims.py`, `src/verify.py`, `src/synthesize.py`: adapted upstream review
   logic used by the engine.
-- `compose.yml`: production-like stack.
+- `docker-compose.yml`: production-like stack.
 - `compose.dev.yml`: development image, source mounts, and FastAPI reload.
 
 The removed legacy `web/` dashboard is not part of this architecture; `app/`
@@ -61,17 +61,50 @@ Generate the ignored `.env` file without printing secrets:
 python scripts/init_env.py
 ```
 
-The generated `.env` has only eight entries: the PostgreSQL password, four
-GitHub App values, the recoverable local admin password plus its hash, and the
-session-signing secret. Compose passes only the admin hash to the application.
-Replace the two GitHub ID placeholders and add the downloaded private key before
-starting the full stack.
+If `.env` already exists, expand it to the current full layout while preserving
+its existing credentials:
 
-Docker/code supply the current defaults: port `8000`, the single allowed DUT-AI
-repository, secure cookies in production, the internal keyless llama.cpp URL
-and model, and publication disabled. They may still be overridden explicitly
-through Compose when deployment requirements change. Never give an LLM provider
-credential to the terminal-capable Harness process.
+```bash
+python scripts/init_env.py --update
+```
+
+The file is split into Docker, PostgreSQL, Web UI/API, admin session, GitHub App,
+LLM, and review-policy sections. It includes both sides of every published port:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `POSTGRES_EXTERNAL_PORT` | `5433` | PostgreSQL port on the Docker host |
+| `POSTGRES_INTERNAL_PORT` | `5432` | PostgreSQL port inside the Compose network |
+| `WEB_EXTERNAL_PORT` | `8000` | admin UI/API port on the Docker host |
+| `WEB_INTERNAL_PORT` | `8000` | FastAPI port inside the web container |
+
+PostgreSQL is reachable from the host at
+`POSTGRES_BIND_HOST:POSTGRES_EXTERNAL_PORT`; web and worker use
+`POSTGRES_HOST:POSTGRES_INTERNAL_PORT`. Both services receive a `DATABASE_URL`
+built by Compose from the explicit database name, user, password, host, and
+internal port. Use a URL-safe PostgreSQL password.
+
+Both database and web ports use the numeric loopback bind `127.0.0.1` required
+by Docker and are accessed through `localhost`. This publishes the ports without
+exposing them to the public network. Only change a bind address to `0.0.0.0`
+after adding the required firewall, authentication, and TLS controls.
+
+The project does not use a standalone admin `JWT_SECRET`. Admin login and CSRF
+use signed cookies backed by `SESSION_SECRET`; GitHub App JWTs are generated from
+`GITHUB_APP_ID` and the PEM mounted from `GITHUB_PRIVATE_KEY_FILE` on the host to
+`GITHUB_PRIVATE_KEY_PATH` inside the containers. Compose never passes the local
+plaintext `ADMIN_PASSWORD` to the application.
+
+Replace the two GitHub ID placeholders and add the downloaded private key before
+starting the full stack. Keep `PUBLISH_ENABLED=false` until a stored preview is
+explicitly approved. Never give an LLM provider credential to the
+terminal-capable Harness process.
+
+Changing a published port and recreating a container does not remove data.
+Changing `POSTGRES_DB`, `POSTGRES_USER`, or `POSTGRES_PASSWORD` does not rewrite
+an already initialized PostgreSQL volume; migrate the database credential inside
+PostgreSQL or provision a deliberate new volume instead of deleting production
+data.
 
 ## Docker development
 
@@ -85,11 +118,12 @@ docker run --rm dut-ai-pr-preview:dev python -m pytest -v
 After GitHub App credentials are filled, start the reload-enabled stack:
 
 ```bash
-docker compose -f compose.yml -f compose.dev.yml up --build
+docker compose -f docker-compose.yml -f compose.dev.yml up --build
 ```
 
-The admin UI is available at `http://127.0.0.1:8000`. Development overrides
-the secure-cookie flag for local HTTP only.
+With the defaults, the admin UI is available at `http://localhost:8000`.
+Use `WEB_BIND_HOST` and `WEB_EXTERNAL_PORT` from `.env` when either value is
+changed. Development overrides the secure-cookie flag for local HTTP only.
 
 ## Docker deployment
 
@@ -102,9 +136,14 @@ docker compose up -d postgres web worker
 docker compose ps
 ```
 
-Publication is disabled by default even though it is no longer repeated in
-`.env`. Set `PUBLISH_ENABLED=true` only for an explicitly selected preview after
-checking the stored head SHA, then remove the override again.
+Because the main file now uses the conventional `docker-compose.yml` name, the
+production commands do not need a `-f` argument. The GitHub App webhook URL is
+managed in GitHub and remains `https://<domain>/webhooks/github`; update it after
+the final server domain and reverse proxy are ready.
+
+Publication is disabled by `PUBLISH_ENABLED=false` in `.env`. Set it to `true`
+only for an explicitly selected preview after checking the stored head SHA, then
+disable it again.
 
 ## Static validation
 

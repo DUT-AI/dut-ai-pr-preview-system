@@ -5,7 +5,9 @@
 Xây dựng **DUT AI PR Preview System** thành một ứng dụng web chạy 24/7 cho các
 dự án của DUT AI Club. Hệ thống kết nối repository qua GitHub App, tự động nhận
 Pull Request mới hoặc thay đổi, dùng review engine để phân tích code/docs/impact
-và đưa ra lời khuyên có evidence cho đội dự án.
+và đưa ra lời khuyên có evidence cho đội dự án. Mỗi repository tiến tới duy trì
+một contract `specs/` có version cho nghiệp vụ, thiết kế và acceptance criteria;
+engine kiểm tra cả độ đầy đủ của spec lẫn sự nhất quán giữa spec và code trên mỗi PR.
 
 Web không chỉ là màn hình chạy CLI. Đây là lớp ứng dụng do DUT AI sở hữu để:
 
@@ -123,22 +125,25 @@ và không commit vào repository.
 | INIT-06 — Repository and Advice Dashboard | proposed | Quản lý repo và xem repository -> PR -> lời khuyên/trạng thái/audit trên web |
 | INIT-07 — Self-hosted LLM | proposed | Harness gọi `llama.cpp` của CLB qua OpenAI-compatible adapter với contract/tool/JSON/load tests |
 | INIT-08 — Docker 24/7 Operations | proposed | Stack Linux Docker Compose có health, persistence, backup, observability và quy trình rollout/rollback |
+| INIT-09 — Specs-Driven Review | proposed | Repository có contract `specs/`; mỗi PR được kiểm tra spec coverage và code–spec compliance bằng evidence/rubric có version |
 
 ## Trình tự dài hạn
 
 1. Đóng baseline adoption/security và xác định contract engine công khai.
 2. Bọc Harness hiện tại sau `ReviewEnginePort` mà vẫn giữ CLI compatibility cần
    thiết để so sánh kết quả.
-3. Thêm PostgreSQL schema, delivery/job state machine và worker durable.
-4. Thêm GitHub App webhook/auth adapter với test repository và quyền tối thiểu.
-5. Thêm adapter `llama.cpp` OpenAI-compatible và acceptance tests cho tool use,
+3. Thêm contract `specs/` và trục spec-compliance: deterministic coverage,
+   evidence reader, rubric judge và report có version/evidence.
+4. Thêm PostgreSQL schema, delivery/job state machine và worker durable.
+5. Thêm GitHub App webhook/auth adapter với test repository và quyền tối thiểu.
+6. Thêm adapter `llama.cpp` OpenAI-compatible và acceptance tests cho tool use,
    structured JSON, context, timeout và concurrency.
-6. Xây dashboard repository/PR/advice và authentication/authorization.
-7. Đóng Docker Compose, migration, persistent volume, health, backup/restore và
+7. Xây dashboard repository/PR/advice và authentication/authorization.
+8. Đóng Docker Compose, migration, persistent volume, health, backup/restore và
    observability.
-8. Chạy E2E trên repo thử nghiệm: webhook -> job -> engine -> lời khuyên trên UI;
+9. Chạy E2E trên repo thử nghiệm: webhook -> job -> engine -> lời khuyên trên UI;
    chỉ sau khi duyệt mới thử một GitHub comment thật.
-9. Pilot allowlist ít repository, đo chất lượng/tải/lỗi rồi mới mở rộng toàn CLB.
+10. Pilot allowlist ít repository, đo chất lượng/tải/lỗi rồi mới mở rộng toàn CLB.
 
 ## Production gate
 
@@ -151,6 +156,8 @@ Tối thiểu phải chứng minh:
 - GitHub/provider secret không lọt vào engine, Harness tool, log hoặc report;
 - PostgreSQL migration, restart recovery, retry và backup/restore đã được thử;
 - `llama.cpp` đạt contract review, structured output và tải mục tiêu;
+- pilot repository chứng minh missing/unmapped/mismatch spec được phát hiện, rubric
+  có version và spec trong PR không thể tự hạ policy chấm;
 - một E2E test-repo chạy đúng head SHA, lưu đúng lời khuyên và không post ngoài
   policy;
 - có kill switch, quota/concurrency limit, observability và rollback plan.
