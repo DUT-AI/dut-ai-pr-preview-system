@@ -78,7 +78,7 @@ def main() -> int:
                 ("POSTGRES_DB", setting("POSTGRES_DB", "dut_ai_pr_preview")),
                 ("POSTGRES_USER", setting("POSTGRES_USER", "dut_ai")),
                 ("POSTGRES_PASSWORD", postgres_password),
-                ("POSTGRES_HOST", setting("POSTGRES_HOST", "dut-ai-pr-preview-postgres")),
+                ("POSTGRES_HOST", setting("POSTGRES_HOST", "postgres")),
                 ("POSTGRES_BIND_HOST", setting("POSTGRES_BIND_HOST", "127.0.0.1")),
                 ("POSTGRES_EXTERNAL_PORT", setting("POSTGRES_EXTERNAL_PORT", "5433")),
                 ("POSTGRES_INTERNAL_PORT", setting("POSTGRES_INTERNAL_PORT", "5432")),
