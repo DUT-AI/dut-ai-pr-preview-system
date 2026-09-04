@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}DUT AI PR Preview System{% endblock %}
+{% block content %}
+<section class="landing">
+  <p class="eyebrow">DUT AI CLUB</p>
+  <h1>He thong PR Review cua CLB</h1>
+  <p class="lead">Theo doi Pull Request, tao ban preview review va giu viec dang comment GitHub trong che do duoc phe duyet.</p>
+  <div class="actions">
+    {% if current_user %}
+    <a class="button" href="/dashboard">Mo dashboard</a>
+    {% else %}
+    <a class="button" href="/login">Dang nhap</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
