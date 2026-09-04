@@ -65,9 +65,24 @@ services:
         read_only: true
     ports:
       - "${WEB_BIND_HOST:-127.0.0.1}:${WEB_EXTERNAL_PORT:-8000}:${WEB_INTERNAL_PORT:-8000}"
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.middlewares.dut-ai-pr-preview-redirect.redirectscheme.scheme: https
+      traefik.http.routers.dut-ai-pr-preview-http.entrypoints: http
+      traefik.http.routers.dut-ai-pr-preview-http.middlewares: dut-ai-pr-preview-redirect
+      traefik.http.routers.dut-ai-pr-preview-http.rule: Host(`${PUBLIC_HOST:-pullreqreview.dutai.io.vn}`)
+      traefik.http.routers.dut-ai-pr-preview-https.entrypoints: https
+      traefik.http.routers.dut-ai-pr-preview-https.rule: Host(`${PUBLIC_HOST:-pullreqreview.dutai.io.vn}`)
+      traefik.http.routers.dut-ai-pr-preview-https.tls: "true"
+      traefik.http.routers.dut-ai-pr-preview-https.tls.certresolver: letsencrypt
+      traefik.http.services.dut-ai-pr-preview.loadbalancer.server.port: "${WEB_INTERNAL_PORT:-8000}"
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - default
+      - coolify
     healthcheck:
       test:
         - CMD
@@ -131,3 +146,7 @@ services:
 volumes:
   postgres-data:
   sessions:
+
+networks:
+  coolify:
+    external: true
