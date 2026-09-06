@@ -33,7 +33,7 @@ services:
       target: production
     command:
       - uvicorn
-      - app.server.controller:create_app
+      - app.main:create_app
       - --factory
       - --host
       - 0.0.0.0

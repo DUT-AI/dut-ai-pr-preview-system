@@ -1,16 +1,15 @@
 {% extends "base.html" %}
-{% block title %}DUT AI PR Preview System{% endblock %}
+{% block title %}DUT AI PR Review{% endblock %}
+{% block body_class %}public{% endblock %}
 {% block content %}
-<section class="landing">
-  <p class="eyebrow">DUT AI CLUB</p>
-  <h1>He thong PR Review cua CLB</h1>
-  <p class="lead">Theo doi Pull Request, tao ban preview review va giu viec dang comment GitHub trong che do duoc phe duyet.</p>
-  <div class="actions">
-    {% if current_user %}
-    <a class="button" href="/dashboard">Mo dashboard</a>
-    {% else %}
-    <a class="button" href="/login">Dang nhap</a>
-    {% endif %}
-  </div>
+<section class="hero">
+  <span class="sr-only">He thong PR Review cua CLB</span>
+  <p class="kicker"><i></i>DUT AI CLUB · INTERNAL TOOL</p>
+  <h1>PR Review<br><em>có hệ thống.</em></h1>
+  <p class="hero-copy">Theo dõi Pull Request, pipeline và kết quả review trong một workspace tập trung.</p>
+  <a class="primary" href="{% if current_user %}/dashboard{% else %}/login{% endif %}">
+    {% if current_user %}Mở dashboard{% else %}Đăng nhập hệ thống{% endif %} <span>→</span>
+  </a>
+  <div class="hero-meta"><span>GITHUB APP</span><span>POSTGRESQL</span><span>LLM-ASSISTED</span></div>
 </section>
 {% endblock %}

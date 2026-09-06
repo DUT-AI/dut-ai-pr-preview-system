@@ -1,331 +1,17 @@
+"""PostgreSQL persistence for the hosted PR review service."""
 from __future__ import annotations
 
-import base64
-import io
 import json
 import logging
 import time
-import zipfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import httpx
-
-from app.server.config import ServerConfig, validate_repo
-from app.server.models import ReviewJob, ReviewOutput
-from src.snapshot import ISSUE_BODY_MAX
-from src.synthesize import MARKER
+from app.server.config import ServerConfig
+# Compatibility export for older callers; GitHub operations live in github.py.
+from app.server.github import GitHubAppClient
 
 logger = logging.getLogger(__name__)
-
-
-class GitHubAppClient:
-    """GitHub REST/GraphQL client authenticated as one App installation."""
-
-    def __init__(self, config: ServerConfig, *, transport=None):
-        self.config = config
-        self._transport = transport
-        self._token = ""
-        self._token_expires_at = 0.0
-
-    def _app_jwt(self) -> str:
-        # cryptography is a server extra and is imported only in the hosted path.
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import padding
-
-        now = int(time.time())
-        header = self._b64json({"alg": "RS256", "typ": "JWT"})
-        payload = self._b64json(
-            {"iat": now - 30, "exp": now + 300, "iss": self.config.github_app_id}
-        )
-        signing_input = f"{header}.{payload}".encode()
-        key = serialization.load_pem_private_key(
-            self.config.github_private_key_path.read_bytes(), password=None
-        )
-        signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
-        return f"{header}.{payload}.{self._b64(signature)}"
-
-    @staticmethod
-    def _b64(data: bytes) -> str:
-        return base64.urlsafe_b64encode(data).decode().rstrip("=")
-
-    @classmethod
-    def _b64json(cls, data: dict[str, Any]) -> str:
-        return cls._b64(json.dumps(data, separators=(",", ":")).encode())
-
-    def _client(self, token: str) -> httpx.Client:
-        return httpx.Client(
-            base_url="https://api.github.com",
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "dut-ai-pr-preview-system/1.4",
-            },
-            timeout=60,
-            follow_redirects=True,
-            transport=self._transport,
-        )
-
-    def installation_token(self) -> str:
-        if self._token and time.time() < self._token_expires_at - 60:
-            return self._token
-        start = time.monotonic()
-        logger.info(
-            "github app token request start installation=%s",
-            self.config.github_installation_id,
-        )
-        with self._client(self._app_jwt()) as client:
-            response = client.post(
-                f"/app/installations/{self.config.github_installation_id}/access_tokens"
-            )
-            response.raise_for_status()
-            data = response.json()
-        logger.info(
-            "github app token request ok installation=%s status=%s elapsed_ms=%s",
-            self.config.github_installation_id, response.status_code,
-            int((time.monotonic() - start) * 1000),
-        )
-        self._token = data["token"]
-        expires = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
-        self._token_expires_at = expires.astimezone(timezone.utc).timestamp()
-        return self._token
-
-    def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        start = time.monotonic()
-        logger.info("github request start method=%s path=%s", method, path)
-        with self._client(self.installation_token()) as client:
-            try:
-                response = client.request(method, path, **kwargs)
-            except Exception:
-                logger.exception("github request failed method=%s path=%s", method, path)
-                raise
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            logger.info(
-                "github request complete method=%s path=%s status=%s elapsed_ms=%s",
-                method, path, response.status_code, elapsed_ms,
-            )
-            if response.is_error:
-                accepted = response.headers.get(
-                    "X-Accepted-GitHub-Permissions", "unspecified"
-                )
-                try:
-                    detail = response.json().get("message", response.text)
-                except (ValueError, AttributeError):
-                    detail = response.text
-                raise RuntimeError(
-                    f"GitHub {method} {path} failed ({response.status_code}): "
-                    f"{str(detail)[:500]}; accepted permissions: {accepted}"
-                )
-            return response
-
-    def _get_pages(self, path: str) -> list[dict[str, Any]]:
-        items: list[dict[str, Any]] = []
-        page = 1
-        while True:
-            response = self._request(
-                "GET", path, params={"per_page": 100, "page": page}
-            )
-            batch = response.json()
-            if not isinstance(batch, list):
-                raise RuntimeError(f"GitHub {path} did not return a list")
-            items.extend(batch)
-            if len(batch) < 100:
-                return items
-            page += 1
-
-    def installation(self) -> dict[str, Any]:
-        # This is an App-level endpoint. GitHub rejects an installation access
-        # token here even though that token is correct for repository APIs.
-        start = time.monotonic()
-        logger.info(
-            "github installation request start installation=%s",
-            self.config.github_installation_id,
-        )
-        with self._client(self._app_jwt()) as client:
-            path = f"/app/installations/{self.config.github_installation_id}"
-            try:
-                response = client.get(path)
-            except Exception:
-                logger.exception("github installation request failed path=%s", path)
-                raise
-            response.raise_for_status()
-            logger.info(
-                "github installation request ok installation=%s status=%s "
-                "elapsed_ms=%s",
-                self.config.github_installation_id, response.status_code,
-                int((time.monotonic() - start) * 1000),
-            )
-            return response.json()
-
-    def repositories(self) -> list[dict[str, Any]]:
-        data = self._request(
-            "GET", "/installation/repositories", params={"per_page": 100}
-        ).json()
-        return [
-            repo for repo in data.get("repositories", [])
-            if repo.get("full_name") in self.config.allowed_repositories
-        ]
-
-    def _graphql_context(
-        self, owner: str, repo: str, pr_number: int
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        query = """
-        query($owner:String!,$repo:String!,$pr:Int!){
-          repository(owner:$owner,name:$repo){pullRequest(number:$pr){
-            closingIssuesReferences(first:10){nodes{number title body}}
-            reviewThreads(first:100){nodes{isResolved isOutdated comments(first:100){
-              nodes{path line author{login} body}
-            }}}
-          }}
-        }
-        """
-        data = self._request(
-            "POST", "/graphql",
-            json={"query": query, "variables": {
-                "owner": owner, "repo": repo, "pr": pr_number,
-            }},
-        ).json()
-        if data.get("errors"):
-            raise RuntimeError(f"GitHub GraphQL failed: {data['errors']}")
-        pr = data["data"]["repository"]["pullRequest"]
-        threads = []
-        for thread in pr["reviewThreads"]["nodes"]:
-            for comment in thread["comments"]["nodes"]:
-                threads.append({
-                    "path": comment.get("path"), "line": comment.get("line"),
-                    "author": (comment.get("author") or {}).get("login"),
-                    "body": comment.get("body") or "",
-                    "resolved": thread["isResolved"],
-                    "outdated": thread["isOutdated"],
-                })
-        issues = [{
-            "number": item.get("number"), "title": item.get("title") or "",
-            "body": (item.get("body") or "")[:ISSUE_BODY_MAX],
-        } for item in pr["closingIssuesReferences"]["nodes"]]
-        return threads, issues
-
-    def snapshot(self, repository: str, pr_number: int) -> dict[str, Any]:
-        repository = validate_repo(repository)
-        if repository not in self.config.allowed_repositories:
-            raise PermissionError(f"repository is not allowlisted: {repository}")
-        owner, repo = repository.split("/", 1)
-        prefix = f"/repos/{owner}/{repo}/pulls/{pr_number}"
-        logger.info("github snapshot start repository=%s pr=%s", repository, pr_number)
-        meta = self._request("GET", prefix).json()
-        files = self._get_pages(prefix + "/files")
-        commits = self._get_pages(prefix + "/commits")
-        threads, issues = self._graphql_context(owner, repo, pr_number)
-        logger.info(
-            "github snapshot ok repository=%s pr=%s files=%s commits=%s "
-            "threads=%s issues=%s",
-            repository, pr_number, len(files), len(commits), len(threads),
-            len(issues),
-        )
-        return {
-            "owner": owner, "repo": repo, "pr": pr_number,
-            "title": meta.get("title") or "", "body": meta.get("body") or "",
-            "author": (meta.get("user") or {}).get("login") or "",
-            "base": (meta.get("base") or {}).get("ref") or "",
-            "head": (meta.get("head") or {}).get("ref") or "",
-            "head_sha": (meta.get("head") or {}).get("sha") or "",
-            "state": meta.get("state") or "",
-            "labels": [label.get("name") for label in meta.get("labels", [])],
-            "files": [{
-                "filename": item.get("filename") or "",
-                "status": item.get("status") or "",
-                "additions": item.get("additions") or 0,
-                "deletions": item.get("deletions") or 0,
-                "patch": item.get("patch") or "",
-            } for item in files],
-            "commits": [{
-                "sha": item.get("sha") or "",
-                "message": (item.get("commit") or {}).get("message") or "",
-                "author": (((item.get("commit") or {}).get("author") or {})
-                           .get("name") or ""),
-                "committed_at": (((item.get("commit") or {}).get("author") or {})
-                                 .get("date")),
-            } for item in commits],
-            "threads": threads, "linked_issues": issues,
-        }
-
-    def download_workspace(self, repository: str, ref: str, target: Path) -> None:
-        repository = validate_repo(repository)
-        if repository not in self.config.allowed_repositories:
-            raise PermissionError(f"repository is not allowlisted: {repository}")
-        logger.info(
-            "github archive download start repository=%s ref=%s",
-            repository, ref[:10],
-        )
-        response = self._request("GET", f"/repos/{repository}/zipball/{ref}")
-        target.mkdir(parents=True, exist_ok=True)
-        root = target.resolve()
-        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-            members = archive.infolist()
-            prefixes = {item.filename.split("/", 1)[0] for item in members}
-            if len(prefixes) != 1:
-                raise RuntimeError("GitHub archive has an unexpected layout")
-            prefix = next(iter(prefixes)) + "/"
-            files_written = 0
-            for item in members:
-                relative = item.filename.removeprefix(prefix)
-                if not relative:
-                    continue
-                destination = (root / relative).resolve()
-                if root not in destination.parents and destination != root:
-                    raise RuntimeError("GitHub archive attempted path traversal")
-                if item.is_dir():
-                    destination.mkdir(parents=True, exist_ok=True)
-                    continue
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_bytes(archive.read(item))
-                files_written += 1
-        logger.info(
-            "github archive download ok repository=%s ref=%s files=%s target=%s",
-            repository, ref[:10], files_written, target,
-        )
-
-    def publish_preview(
-        self, repository: str, pr_number: int, head_sha: str, body: str
-    ) -> dict[str, Any]:
-        repository = validate_repo(repository)
-        if repository not in self.config.allowed_repositories:
-            raise PermissionError(f"repository is not allowlisted: {repository}")
-        current = self._request(
-            "GET", f"/repos/{repository}/pulls/{pr_number}"
-        ).json()
-        current_sha = (current.get("head") or {}).get("sha")
-        if current_sha != head_sha:
-            raise RuntimeError(
-                f"stale review: run={head_sha[:12]} current={str(current_sha)[:12]}"
-            )
-        comments = self._get_pages(
-            f"/repos/{repository}/issues/{pr_number}/comments"
-        )
-        existing = next(
-            (item for item in comments if MARKER in (item.get("body") or "")), None
-        )
-        if existing:
-            saved = self._request(
-                "PATCH", f"/repos/{repository}/issues/comments/{existing['id']}",
-                json={"body": body},
-            ).json()
-            action = "updated"
-        else:
-            saved = self._request(
-                "POST", f"/repos/{repository}/issues/{pr_number}/comments",
-                json={"body": body},
-            ).json()
-            action = "created"
-        readback = self._request(
-            "GET", f"/repos/{repository}/issues/comments/{saved['id']}"
-        ).json()
-        if readback.get("body") != body:
-            raise RuntimeError("GitHub comment readback did not match the preview")
-        return {"action": action, "comment_id": saved["id"],
-                "url": saved.get("html_url")}
-
 
 class PostgresStore:
     JOB_LEASE_SECONDS = 60
@@ -477,16 +163,32 @@ class PostgresStore:
         repository_id = repository["id"]
         connection.execute(
             """INSERT INTO pull_requests
-               (repository_id,number,title,author,base_ref,head_ref,head_sha,state)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+               (repository_id,number,title,body,author,base_ref,head_ref,head_sha,
+                state,html_url,additions,deletions,changed_files,files)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                ON CONFLICT (repository_id,number) DO UPDATE SET
-                 title=EXCLUDED.title,author=EXCLUDED.author,
+                 title=EXCLUDED.title,body=EXCLUDED.body,author=EXCLUDED.author,
                  base_ref=EXCLUDED.base_ref,head_ref=EXCLUDED.head_ref,
-                 head_sha=EXCLUDED.head_sha,state=EXCLUDED.state,updated_at=NOW()""",
-            (repository_id, snapshot["pr"], snapshot.get("title", ""),
-             snapshot.get("author", ""), snapshot.get("base", ""),
-             snapshot.get("head", ""), snapshot["head_sha"],
-             snapshot.get("state", "open")),
+                 head_sha=EXCLUDED.head_sha,state=EXCLUDED.state,
+                 html_url=EXCLUDED.html_url,additions=EXCLUDED.additions,
+                 deletions=EXCLUDED.deletions,changed_files=EXCLUDED.changed_files,
+                 files=EXCLUDED.files,updated_at=NOW()""",
+            (
+                repository_id,
+                snapshot["pr"],
+                snapshot.get("title", ""),
+                snapshot.get("body", ""),
+                snapshot.get("author", ""),
+                snapshot.get("base", ""),
+                snapshot.get("head", ""),
+                snapshot["head_sha"],
+                snapshot.get("state", "open"),
+                snapshot.get("html_url"),
+                sum(item.get("additions", 0) for item in snapshot.get("files", [])),
+                sum(item.get("deletions", 0) for item in snapshot.get("files", [])),
+                len(snapshot.get("files", [])),
+                self._json(snapshot.get("files", [])),
+            ),
         )
         for commit in snapshot.get("commits", []):
             connection.execute(
@@ -597,12 +299,29 @@ class PostgresStore:
             ).fetchall())
             jobs = list(connection.execute(
                 """SELECT id,pr_number,head_sha,status,attempt,error,
-                     created_at,updated_at
+                      created_at,updated_at
                    FROM jobs WHERE repository=%s
                    ORDER BY created_at DESC LIMIT 50""",
                 (full_name,),
             ).fetchall())
             return {"repository": repo, "pull_requests": prs, "jobs": jobs}
+
+    def record_job_log(self, job_id: int, phase: str, message: str,
+                       level: str = "info") -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO job_logs (job_id,phase,level,message)
+                   VALUES (%s,%s,%s,%s)""",
+                (job_id, phase[:80], level[:20], message[:4000]),
+            )
+
+    def job_logs(self, job_id: int) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            return list(connection.execute(
+                """SELECT id,job_id,phase,level,message,created_at
+                   FROM job_logs WHERE job_id=%s ORDER BY created_at, id""",
+                (job_id,),
+            ).fetchall())
 
     def run_detail(self, run_id: int) -> dict[str, Any] | None:
         with self._connect() as connection:
@@ -622,7 +341,14 @@ class PostgresStore:
                 "SELECT * FROM publish_audit WHERE run_id=%s ORDER BY created_at DESC",
                 (run_id,),
             ).fetchall())
-            return {"run": run, "commits": commits, "publish_audit": audit}
+            pr = connection.execute(
+                """SELECT * FROM pull_requests p JOIN repositories r
+                   ON r.id=p.repository_id WHERE r.full_name=%s AND p.number=%s""",
+                (run["repository"], run["pr_number"]),
+            ).fetchone()
+            logs = self.job_logs(run["job_id"])
+            return {"run": run, "pr": pr, "commits": commits,
+                    "publish_audit": audit, "logs": logs}
 
     def record_publish(
         self, run_id: int, head_sha: str, status: str, *, action: str = "publish",

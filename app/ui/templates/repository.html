@@ -1,22 +1,21 @@
 {% extends "base.html" %}
 {% block title %}{{ repository.full_name }} · DUT AI{% endblock %}
-{% block content %}
-<p class="eyebrow">REPOSITORY</p><h1>{{ repository.full_name }}</h1>
-<div class="card table-wrap">
-<table><thead><tr><th>PR</th><th>Nhánh</th><th>Head SHA</th><th>Trạng thái</th><th>Review gần nhất</th></tr></thead><tbody>
-{% for pr in pull_requests %}<tr>
-  <td><b>#{{ pr.number }}</b> {{ pr.title }}<small>{{ pr.author }}</small></td>
-  <td>{{ pr.head_ref }} → {{ pr.base_ref }}</td><td class="mono">{{ pr.head_sha[:10] }}</td><td>{{ pr.state }}</td>
-  <td>{% if pr.latest_run_id %}<a href="/runs/{{ pr.latest_run_id }}">{{ pr.latest_run_status }}</a>{% else %}Đang chờ{% endif %}</td>
-</tr>{% else %}<tr><td colspan="5">Chưa nhận webhook PR.</td></tr>{% endfor %}
-</tbody></table></div>
-<p class="eyebrow">REVIEW QUEUE</p><h2>Trạng thái pipeline</h2>
-<div class="card table-wrap">
-<table><thead><tr><th>Job</th><th>PR</th><th>Head SHA</th><th>Trạng thái</th><th>Lần chạy</th><th>Chi tiết</th></tr></thead><tbody>
-{% for job in jobs %}<tr>
-  <td>#{{ job.id }}</td><td>#{{ job.pr_number }}</td>
-  <td class="mono">{{ job.head_sha[:10] }}</td><td>{{ job.status }}</td>
-  <td>{{ job.attempt }}</td><td>{{ job.error or '—' }}</td>
-</tr>{% else %}<tr><td colspan="6">Chưa có job từ webhook.</td></tr>{% endfor %}
-</tbody></table></div>
+{% block shell %}
+<div class="app-shell">
+  <aside class="sidebar"><p class="side-label">WORKSPACE</p><a class="side-link" href="/dashboard">◈ &nbsp;Tổng quan</a><p class="side-label">REPOSITORY</p><a class="side-link active" href="#">◫ &nbsp;{{ repository.name }}</a><div class="worker"><i></i><span><b>Worker online</b><small>Queue đang hoạt động</small></span></div></aside>
+  <main class="workspace">
+    <a class="back" href="/dashboard">← Tổng quan</a>
+    <div class="heading compact"><div><p class="label">REPOSITORY</p><h1>{{ repository.full_name }}</h1><p class="muted">{{ repository.default_branch or 'default branch chưa đồng bộ' }} · {{ pull_requests|length }} Pull Request</p></div></div>
+    <div class="section-title"><p class="label">PULL REQUESTS</p><h2>Danh sách PR</h2></div>
+    <section class="pr-list">
+      {% for pr in pull_requests %}
+      <article class="pr-row"><strong class="pr-number">#{{ pr.number }}</strong><div class="pr-main"><a href="{% if pr.latest_run_id %}/runs/{{ pr.latest_run_id }}{% else %}#{% endif %}"><b>{{ pr.title or 'Untitled pull request' }}</b></a><small>{{ pr.author }} · {{ pr.head_ref }} → {{ pr.base_ref }}</small></div><div class="diff"><b>+{{ pr.additions }}</b><span>-{{ pr.deletions }}</span></div><span class="state {{ pr.latest_run_status or 'queued' }}">{{ pr.latest_run_status or 'QUEUED' }}</span><code>{{ pr.head_sha[:10] }}</code></article>
+      {% else %}<div class="empty">Chưa nhận webhook PR cho repository này.</div>{% endfor %}
+    </section>
+    <div class="section-title gap"><p class="label">QUEUE ACTIVITY · Trạng thái pipeline</p><h2>Job gần đây</h2></div>
+    <section class="jobs"><div class="job-head"><span>JOB</span><span>PR / HEAD</span><span>STATUS</span><span>ATTEMPT</span><span>DETAIL</span></div>
+      {% for job in jobs %}<div class="job-row"><code>#{{ job.id }}</code><span>#{{ job.pr_number }} · <code>{{ job.head_sha[:10] }}</code></span><span class="state {{ job.status }}">{{ job.status }}</span><span>{{ job.attempt }}</span><span>{{ job.error or 'Pipeline ready' }}</span></div>{% else %}<div class="empty">Queue trống.</div>{% endfor %}
+    </section>
+  </main>
+</div>
 {% endblock %}

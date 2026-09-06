@@ -21,14 +21,26 @@ CREATE TABLE IF NOT EXISTS pull_requests (
     repository_id BIGINT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
     number INTEGER NOT NULL,
     title TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
     author TEXT NOT NULL DEFAULT '',
     base_ref TEXT NOT NULL DEFAULT '',
     head_ref TEXT NOT NULL DEFAULT '',
     head_sha TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'open',
+    html_url TEXT,
+    additions INTEGER NOT NULL DEFAULT 0,
+    deletions INTEGER NOT NULL DEFAULT 0,
+    changed_files INTEGER NOT NULL DEFAULT 0,
+    files JSONB NOT NULL DEFAULT '[]'::jsonb,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (repository_id, number)
 );
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT '';
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS html_url TEXT;
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS additions INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS deletions INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS changed_files INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS files JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS commits (
     repository_id BIGINT NOT NULL REFERENCES repositories(id) ON DELETE CASCADE,
@@ -85,6 +97,16 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS runs_pr_idx
     ON runs (repository, pr_number, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS job_logs (
+    id BIGSERIAL PRIMARY KEY,
+    job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    phase TEXT NOT NULL,
+    level TEXT NOT NULL DEFAULT 'info',
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS job_logs_job_idx ON job_logs (job_id, created_at);
 
 CREATE TABLE IF NOT EXISTS publish_audit (
     id BIGSERIAL PRIMARY KEY,

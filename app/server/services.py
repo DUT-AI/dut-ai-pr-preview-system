@@ -20,6 +20,16 @@ logger = logging.getLogger(__name__)
 def _short_sha(value: str) -> str:
     return value[:10] if value else "-"
 
+
+def _job_log(store, job, phase: str, message: str, level: str = "info") -> None:
+    """Persist operational breadcrumbs when the store supports them."""
+    record = getattr(store, "record_job_log", None)
+    if record:
+        try:
+            record(job.id, phase, message, level)
+        except Exception:
+            logger.exception("job log persistence failed id=%s phase=%s", job.id, phase)
+
 def ingest_webhook(
     body: bytes, headers: Mapping[str, str], config: ServerConfig, store
 ) -> dict[str, Any]:
@@ -90,6 +100,7 @@ def process_one_job(
         job.id, job.repository, job.pr_number, _short_sha(job.head_sha),
         job.attempt,
     )
+    _job_log(store, job, phase, "job claimed")
     heartbeat_stop = threading.Event()
     heartbeat = threading.Thread(
         target=_heartbeat, args=(store, job, heartbeat_stop),
@@ -102,11 +113,19 @@ def process_one_job(
             "job phase start id=%s phase=%s repository=%s pr=%s",
             job.id, phase, job.repository, job.pr_number,
         )
+        _job_log(store, job, phase, "started")
         snapshot = github.snapshot(job.repository, job.pr_number)
         logger.info(
             "job phase ok id=%s phase=%s head=%s files=%s commits=%s",
             job.id, phase, _short_sha(snapshot.get("head_sha", "")),
             len(snapshot.get("files", [])), len(snapshot.get("commits", [])),
+        )
+        _job_log(
+            store,
+            job,
+            phase,
+            "ok; files=%s; commits=%s"
+            % (len(snapshot.get("files", [])), len(snapshot.get("commits", []))),
         )
         if snapshot["head_sha"] != job.head_sha:
             logger.warning(
@@ -131,6 +150,7 @@ def process_one_job(
             json.dumps(snapshot, indent=2), encoding="utf-8"
         )
         logger.info("job phase ok id=%s phase=%s", job.id, phase)
+        _job_log(store, job, phase, "ok")
         with tempfile.TemporaryDirectory(prefix="dut-ai-review-") as temp:
             workspace = Path(temp).resolve()
             phase = "github workspace download"
@@ -138,23 +158,28 @@ def process_one_job(
                 "job phase start id=%s phase=%s repository=%s head=%s",
                 job.id, phase, job.repository, _short_sha(job.head_sha),
             )
+            _job_log(store, job, phase, "started")
             github.download_workspace(job.repository, job.head_sha, workspace)
             logger.info("job phase ok id=%s phase=%s path=%s", job.id, phase, workspace)
+            _job_log(store, job, phase, "ok")
             phase = "review engine"
             logger.info(
                 "job phase start id=%s phase=%s session=%s",
                 job.id, phase, session_dir,
             )
+            _job_log(store, job, phase, "started")
             output = engine.review(snapshot, workspace, session_dir)
             logger.info(
                 "job phase ok id=%s phase=%s session=%s",
                 job.id, phase, output.session_path,
             )
+            _job_log(store, job, phase, "ok")
         store.complete_job(job, snapshot, output)
         logger.info(
             "job complete id=%s repository=%s pr=%s head=%s",
             job.id, job.repository, job.pr_number, _short_sha(job.head_sha),
         )
+        _job_log(store, job, "complete", "review persisted")
     except KeyboardInterrupt:
         store.interrupt_job(job, "worker interrupted by shutdown signal; retrying")
         raise
@@ -163,6 +188,7 @@ def process_one_job(
             "job failed id=%s phase=%s repository=%s pr=%s head=%s",
             job.id, phase, job.repository, job.pr_number, _short_sha(job.head_sha),
         )
+        _job_log(store, job, phase, str(exc), "error")
         message = f"{phase} failed: {exc}"
         for secret in (
             config.github_webhook_secret, config.session_secret, config.llm_api_key

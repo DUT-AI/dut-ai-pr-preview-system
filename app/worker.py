@@ -8,7 +8,8 @@ import time
 import uuid
 
 from app.server.config import load_server_config
-from app.server.repositories import GitHubAppClient, PostgresStore
+from app.server.github import GitHubAppClient
+from app.server.repositories import PostgresStore
 from app.server.services import process_one_job
 from src.engine.gateway import SubprocessReviewEngine
 

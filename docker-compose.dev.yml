@@ -12,7 +12,7 @@ services:
       target: development
     command:
       - uvicorn
-      - app.server.controller:create_app
+      - app.main:create_app
       - --factory
       - --reload
       - --host
