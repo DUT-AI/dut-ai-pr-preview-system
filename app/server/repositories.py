@@ -326,7 +326,10 @@ class PostgresStore:
             if not pr:
                 return None
             runs = list(connection.execute(
-                """SELECT review.*, published.comment_id,
+                """SELECT review.id,review.job_id,review.repository,
+                   review.pr_number,review.head_sha,review.status,
+                   review.findings,review.created_at,review.completed_at,
+                   published.comment_id,
                    published.created_at AS published_at
                    FROM runs review
                    LEFT JOIN LATERAL (

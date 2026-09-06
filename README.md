@@ -124,6 +124,12 @@ With the defaults, the admin UI is available at `http://localhost:3636`.
 Use `WEB_BIND_HOST` and `WEB_EXTERNAL_PORT` from `.env` when either value is
 changed. Use `SESSION_COOKIE_SECURE=false` in `.env` for local HTTP.
 
+The dashboard lists repositories known to the GitHub App. A repository page
+lists Pull Requests that this service has received and persisted; it is not a
+live mirror of every Pull Request ever created on GitHub. Select a Pull Request
+to open its history page, then select any persisted review run to inspect its
+findings, exact comment preview, pipeline log, and publication audit.
+
 ## Docker deployment
 
 On the Linux server, keep `.env` and `secrets/github-app.pem` outside source
