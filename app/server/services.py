@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from app.security import verify_webhook_signature
-from app.server.config import ServerConfig, validate_repo
+from app.server.config import ServerConfig, repository_is_allowed, validate_repo
 
 _ACTIONS = {"opened", "reopened", "synchronize", "ready_for_review"}
 _STATE_ONLY_ACTIONS = {"closed"}
@@ -58,7 +58,7 @@ def ingest_webhook(
     repository = validate_repo(
         str((payload.get("repository") or {}).get("full_name") or "")
     )
-    if repository not in config.allowed_repositories:
+    if not repository_is_allowed(repository, config.allowed_repositories):
         raise PermissionError("webhook repository is not allowlisted")
     pull_request = payload.get("pull_request") or {}
     pr_number = int((payload.get("number") or pull_request.get("number") or 0))
@@ -220,7 +220,7 @@ def publish_run(config: ServerConfig, store, github, run_id: int) -> dict[str, A
     if detail is None:
         raise LookupError("run not found")
     run = detail["run"]
-    if run["repository"] not in config.allowed_repositories:
+    if not repository_is_allowed(run["repository"], config.allowed_repositories):
         raise LookupError("run not found")
     try:
         result = github.publish_preview(

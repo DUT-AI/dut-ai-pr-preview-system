@@ -35,8 +35,8 @@ is the only web application.
 
 ## GitHub App credentials
 
-Create one private GitHub App owned by `DUT-AI`, install it only on this
-repository, and configure:
+Create one private GitHub App owned by `DUT-AI`. Install it on selected
+repositories or all organization repositories, then configure:
 
 - repository permissions: Metadata read, Contents read, Pull requests read/write,
   Issues read/write;
@@ -49,6 +49,9 @@ repository, and configure:
 - private key: download it to `secrets/github-app.pem`;
 - `GITHUB_APP_ID`: the App ID shown in the app settings;
 - `GITHUB_INSTALLATION_ID`: the numeric ID in the installation URL.
+- `GITHUB_ALLOWED_REPOSITORIES`: comma-separated exact repositories, or a
+  strict owner-wide scope such as `DUT-AI/*`. GitHub App installation access
+  and this server-side allowlist must both permit a repository.
 
 Do not use a personal access token. Do not commit `.env`, the PEM file, or any
 installation token.

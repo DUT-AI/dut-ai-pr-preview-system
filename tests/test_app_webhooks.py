@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,19 @@ def test_webhook_rejects_repository_outside_allowlist():
     body = json.dumps(data).encode()
     with pytest.raises(PermissionError, match="allowlisted"):
         ingest_webhook(body, signed_headers(body), config(), Store())
+
+
+def test_webhook_accepts_another_repo_in_the_allowlisted_owner():
+    data = payload()
+    data["repository"]["full_name"] = "DUT-AI/club-project"
+    body = json.dumps(data).encode()
+    configured = replace(
+        config(), allowed_repositories=frozenset({"DUT-AI/*"})
+    )
+
+    result = ingest_webhook(body, signed_headers(body), configured, Store())
+
+    assert result == {"accepted": True, "queued": True, "duplicate": False}
 
 
 def test_closed_webhook_updates_history_without_enqueuing_review():
