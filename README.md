@@ -44,7 +44,7 @@ repository, and configure:
 - webhook secret: use the generated `GITHUB_WEBHOOK_SECRET` from `.env`;
 - webhook URL: `https://<server>/webhooks/github`;
 - webhook URL for the current development tunnel:
-  `https://fairinsight.luongduytoan.io.vn/webhooks/github`. Change it in the
+  `https://test.luongduytoan.io.vn/webhooks/github`. Change it in the
   GitHub App settings when the production domain is ready;
 - private key: download it to `secrets/github-app.pem`;
 - `GITHUB_APP_ID`: the App ID shown in the app settings;

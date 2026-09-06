@@ -1,15 +1,22 @@
 {% extends "base.html" %}
-{% block title %}Đăng nhập · DUT AI PR Preview{% endblock %}
+{% block title %}Đăng nhập · DUT AI{% endblock %}
 {% block content %}
-<section class="login card">
-  <p class="eyebrow">DUT AI CLUB</p>
-  <h1>PR Preview System</h1>
-  <p class="muted">Dashboard nội bộ dành cho quản trị viên.</p>
-  <form method="post" action="/login" class="stack">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label>Tài khoản<input name="username" value="{{ username }}" autocomplete="username"></label>
-    <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" autofocus></label>
-    <button type="submit">Đăng nhập</button>
-  </form>
+<section class="auth">
+  <div>
+    <p class="kicker"><i></i>DUT AI CLUB</p>
+    <h1>Review work<br><em>with clarity.</em></h1>
+    <p class="muted">Không gian nội bộ cho các PR cần được theo dõi và kiểm tra.</p>
+  </div>
+  <div class="auth-card">
+    <p class="label">SECURE ACCESS</p>
+    <h2>Đăng nhập</h2>
+    <p class="muted">Dùng tài khoản quản trị đã được cấu hình.</p>
+    <form method="post" action="/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>Tài khoản<input name="username" value="{{ username }}" autocomplete="username"></label>
+      <label>Mật khẩu<input name="password" type="password" autocomplete="current-password" autofocus></label>
+      <button class="primary" type="submit">Tiếp tục <span>→</span></button>
+    </form>
+  </div>
 </section>
 {% endblock %}
