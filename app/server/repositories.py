@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from app.server.config import ServerConfig
+from app.server.models import ReviewJob, ReviewOutput
+
 # Compatibility export for older callers; GitHub operations live in github.py.
 from app.server.github import GitHubAppClient
 
