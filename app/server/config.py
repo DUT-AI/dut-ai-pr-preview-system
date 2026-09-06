@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
@@ -15,6 +16,31 @@ def validate_repo(value: str) -> str:
     if not _REPO_RE.fullmatch(value) or ".." in value:
         raise ValueError(f"invalid owner/repository: {value!r}")
     return value
+
+
+def validate_repository_scope(value: str) -> str:
+    """Accept one exact repository or a strict owner-wide ``owner/*`` scope."""
+    value = value.strip()
+    if value.endswith("/*"):
+        owner = value[:-2]
+        if not _NAME_RE.fullmatch(owner) or ".." in owner:
+            raise ValueError(f"invalid repository scope: {value!r}")
+        return value
+    return validate_repo(value)
+
+
+def repository_is_allowed(repository: str, scopes: frozenset[str]) -> bool:
+    """Match a validated repository against exact and owner-wide scopes."""
+    try:
+        repository = validate_repo(repository)
+    except ValueError:
+        return False
+    owner, _ = repository.split("/", 1)
+    folded_scopes = {scope.casefold() for scope in scopes}
+    return (
+        repository.casefold() in folded_scopes
+        or f"{owner.casefold()}/*" in folded_scopes
+    )
 
 
 def _required(name: str) -> str:
@@ -45,7 +71,7 @@ class ServerConfig:
 
 def load_server_config() -> ServerConfig:
     repositories = frozenset(
-        validate_repo(item)
+        validate_repository_scope(item)
         for item in os.environ.get(
             "GITHUB_ALLOWED_REPOSITORIES",
             "DUT-AI/dut-ai-pr-preview-system",

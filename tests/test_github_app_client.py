@@ -71,6 +71,38 @@ def test_installation_uses_app_jwt_instead_of_installation_token(monkeypatch):
     assert client.installation() == {"id": 42}
 
 
+def test_repositories_support_owner_scope_and_pagination(monkeypatch):
+    pages = []
+
+    def handler(request: httpx.Request):
+        assert request.url.path == "/installation/repositories"
+        page = int(request.url.params["page"])
+        pages.append(page)
+        if page == 1:
+            repositories = [
+                {"full_name": f"DUT-AI/repository-{number}"}
+                for number in range(100)
+            ]
+        else:
+            repositories = [
+                {"full_name": "DUT-AI/final-repository"},
+                {"full_name": "outside/not-allowed"},
+            ]
+        return httpx.Response(200, json={"repositories": repositories})
+
+    configured = replace(
+        config(), allowed_repositories=frozenset({"DUT-AI/*"})
+    )
+    client = GitHubAppClient(configured, transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(client, "installation_token", lambda: "installation-token")
+
+    repositories = client.repositories()
+
+    assert pages == [1, 2]
+    assert len(repositories) == 101
+    assert repositories[-1]["full_name"] == "DUT-AI/final-repository"
+
+
 def test_request_reports_github_error_without_exposing_token(monkeypatch):
     def handler(request: httpx.Request):
         return httpx.Response(

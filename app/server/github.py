@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-from app.server.config import validate_repo
+from app.server.config import repository_is_allowed, validate_repo
 from src.snapshot import ISSUE_BODY_MAX
 from src.synthesize import MARKER
 
@@ -121,8 +121,25 @@ def create_client(config, *, transport=None):
             return response.json()
 
     def repositories() -> list[dict[str, Any]]:
-        data = request("GET", "/installation/repositories", params={"per_page": 100}).json()
-        return [repo for repo in data.get("repositories", []) if repo.get("full_name") in config.allowed_repositories]
+        repositories: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            data = request(
+                "GET", "/installation/repositories",
+                params={"per_page": 100, "page": page},
+            ).json()
+            batch = data.get("repositories")
+            if not isinstance(batch, list):
+                raise RuntimeError("GitHub repository response is invalid")
+            repositories.extend(
+                repo for repo in batch
+                if repository_is_allowed(
+                    str(repo.get("full_name") or ""), config.allowed_repositories
+                )
+            )
+            if len(batch) < 100:
+                return repositories
+            page += 1
 
     def graphql_context(owner: str, repo: str, pr_number: int):
         query = """query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){closingIssuesReferences(first:10){nodes{number title body}} reviewThreads(first:100){nodes{isResolved isOutdated comments(first:100){nodes{path line author{login} body}}}}}}}"""
@@ -139,7 +156,7 @@ def create_client(config, *, transport=None):
 
     def snapshot(repository: str, pr_number: int) -> dict[str, Any]:
         repository = validate_repo(repository)
-        if repository not in config.allowed_repositories:
+        if not repository_is_allowed(repository, config.allowed_repositories):
             raise PermissionError(f"repository is not allowlisted: {repository}")
         owner, repo = repository.split("/", 1)
         prefix = f"/repos/{owner}/{repo}/pulls/{pr_number}"
@@ -163,7 +180,7 @@ def create_client(config, *, transport=None):
 
     def download_workspace(repository: str, ref: str, target: Path) -> None:
         repository = validate_repo(repository)
-        if repository not in config.allowed_repositories:
+        if not repository_is_allowed(repository, config.allowed_repositories):
             raise PermissionError(f"repository is not allowlisted: {repository}")
         response = request("GET", f"/repos/{repository}/zipball/{ref}")
         target.mkdir(parents=True, exist_ok=True)
@@ -189,7 +206,7 @@ def create_client(config, *, transport=None):
 
     def publish_preview(repository: str, pr_number: int, head_sha: str, body: str):
         repository = validate_repo(repository)
-        if repository not in config.allowed_repositories:
+        if not repository_is_allowed(repository, config.allowed_repositories):
             raise PermissionError(f"repository is not allowlisted: {repository}")
         current = request("GET", f"/repos/{repository}/pulls/{pr_number}").json()
         if (current.get("head") or {}).get("sha") != head_sha:

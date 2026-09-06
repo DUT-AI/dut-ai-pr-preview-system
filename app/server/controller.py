@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.security import new_csrf_token, verify_password
-from app.server.config import validate_repo
+from app.server.config import repository_is_allowed, validate_repo
 from app.server.middleware import check_csrf, current_user, form_values
 from app.server.middleware import require_user, set_csrf_cookie, set_login_cookie
 from app.server.presentation import (
@@ -115,7 +115,7 @@ def create_router(config, store, github) -> APIRouter:
             full_name = validate_repo(f"{owner}/{repo}")
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="repository not found") from exc
-        if full_name not in config.allowed_repositories:
+        if not repository_is_allowed(full_name, config.allowed_repositories):
             raise HTTPException(status_code=404, detail="repository not found")
         detail = store.repository_detail(full_name)
         if detail is None:
@@ -126,7 +126,9 @@ def create_router(config, store, github) -> APIRouter:
     def run_page(request: Request, run_id: int):
         require_user(request, config)
         detail = store.run_detail(run_id)
-        if detail is None or detail["run"]["repository"] not in config.allowed_repositories:
+        if detail is None or not repository_is_allowed(
+            detail["run"]["repository"], config.allowed_repositories
+        ):
             raise HTTPException(status_code=404, detail="run not found")
         return page(
             request,
@@ -150,7 +152,10 @@ def create_router(config, store, github) -> APIRouter:
             full_name = validate_repo(f"{owner}/{repo}")
         except ValueError as exc:
             raise HTTPException(status_code=404, detail="pull request not found") from exc
-        if full_name not in config.allowed_repositories or pr_number <= 0:
+        if (
+            not repository_is_allowed(full_name, config.allowed_repositories)
+            or pr_number <= 0
+        ):
             raise HTTPException(status_code=404, detail="pull request not found")
         detail = store.pull_request_detail(full_name, pr_number)
         if detail is None:
