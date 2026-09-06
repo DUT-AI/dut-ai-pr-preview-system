@@ -4,33 +4,51 @@
 <div class="app-shell">
   <aside class="sidebar">
     <p class="side-label">WORKSPACE</p>
-    <a class="side-link active" href="/dashboard">◈ &nbsp;Tổng quan</a>
+    <a class="side-link active" href="/dashboard"><span>◈</span>Tổng quan</a>
     <p class="side-label">MONITORED</p>
     {% for repo in repositories %}
-    <a class="side-link" href="/repositories/{{ repo.owner }}/{{ repo.name }}">◫ &nbsp;{{ repo.name }}</a>
+    <a class="side-link" href="/repositories/{{ repo.owner }}/{{ repo.name }}"><span>◫</span>{{ repo.name }}</a>
     {% endfor %}
-    <div class="worker"><i></i><span><b>Worker online</b><small>Queue đang hoạt động</small></span></div>
+    <div class="worker"><i></i><span><b>System ready</b><small>Database & worker monitored</small></span></div>
   </aside>
   <main class="workspace">
-    <div class="heading">
-      <div><p class="label">OVERVIEW / {{ repositories|length }} REPOSITORY</p><h1>Chào mừng trở lại.</h1><p class="muted">Tổng quan hoạt động review của DUT AI Club.</p></div>
-      <span class="mode"><i></i>{{ 'PUBLISH ENABLED' if publish_enabled else 'PREVIEW ONLY' }}{% if not publish_enabled %}<small>Preview only</small>{% endif %}</span>
-    </div>
-    <section class="stats">
-      <article><span class="stat-icon blue">◫</span><div><small>PULL REQUESTS</small><strong>{{ repositories|sum(attribute='pull_request_count') }}</strong><em>Đang theo dõi</em></div></article>
-      <article><span class="stat-icon green">✓</span><div><small>REVIEW RUNS</small><strong>{{ repositories|sum(attribute='run_count') }}</strong><em>Đã xử lý</em></div></article>
-      <article><span class="stat-icon amber">◌</span><div><small>ACTIVE JOBS</small><strong>{{ repositories|sum(attribute='active_job_count') }}</strong><em>Trong hàng đợi</em></div></article>
+    <section class="dashboard-hero">
+      <div>
+        <p class="label">OPERATIONS OVERVIEW</p>
+        <h1>Review control center</h1>
+        <p class="muted">Một nơi để theo dõi PR, kiểm tra kết quả AI và quyết định khi nào được publish.</p>
+      </div>
+      <span class="mode {{ 'enabled' if publish_enabled else 'preview' }}"><i></i>{{ 'PUBLISH ENABLED' if publish_enabled else 'PREVIEW ONLY' }}<small>{{ 'GitHub write is enabled' if publish_enabled else 'Preview only · no automatic comment' }}</small></span>
     </section>
-    <div class="section-title"><p class="label">REPOSITORIES</p><h2>Kho đang theo dõi</h2></div>
+
+    <section class="stats stats-four">
+      <article><span class="stat-icon blue">◫</span><div><small>REPOSITORIES</small><strong>{{ summary.repositories }}</strong><em>Được giám sát</em></div></article>
+      <article><span class="stat-icon violet">⑂</span><div><small>PULL REQUESTS</small><strong>{{ summary.pull_requests }}</strong><em>Đã đồng bộ</em></div></article>
+      <article><span class="stat-icon green">✓</span><div><small>REVIEW RUNS</small><strong>{{ summary.runs }}</strong><em>Đã ghi nhận</em></div></article>
+      <article><span class="stat-icon amber">◌</span><div><small>ACTIVE JOBS</small><strong>{{ summary.active_jobs }}</strong><em>Đang xử lý</em></div></article>
+    </section>
+
+    <div class="section-heading">
+      <div><p class="label">REPOSITORIES</p><h2>Kho đang theo dõi</h2></div>
+      <span>{{ repositories|length }} connected</span>
+    </div>
     <section class="repo-list">
       {% for repo in repositories %}
       <a class="repo-row" href="/repositories/{{ repo.owner }}/{{ repo.name }}">
         <span class="repo-icon">{{ repo.name[:1]|upper }}</span>
-        <span class="repo-name"><b>{{ repo.name }}</b><small>{{ repo.owner }} · default: {{ repo.default_branch or 'unknown' }}</small></span>
-        <span class="row-metric"><b>{{ repo.pull_request_count }}</b><small>PR</small></span>
-        <span class="row-metric"><b>{{ repo.run_count }}</b><small>REVIEWS</small></span><span class="arrow">→</span>
+        <span class="repo-name"><b>{{ repo.name }}</b><small>{{ repo.owner }} / default: {{ repo.default_branch or 'unknown' }}</small></span>
+        <span class="row-metric"><b>{{ repo.pull_request_count }}</b><small>PULL REQUESTS</small></span>
+        <span class="row-metric"><b>{{ repo.run_count }}</b><small>REVIEW RUNS</small></span>
+        <span class="row-metric"><b>{{ repo.active_job_count }}</b><small>ACTIVE</small></span>
+        <span class="arrow">→</span>
       </a>
-      {% else %}<div class="empty">Chưa có repository được đồng bộ.</div>{% endfor %}
+      {% else %}<div class="empty"><b>Chưa có repository</b><span>Chờ GitHub App đồng bộ repository đầu tiên.</span></div>{% endfor %}
+    </section>
+
+    <section class="safety-strip">
+      <span class="shield">◇</span>
+      <div><b>Review có kiểm soát</b><p>PR content và AI output được xem là dữ liệu không tin cậy. Dashboard chỉ hiển thị bản đã escape và mọi lần publish đều có audit.</p></div>
+      <span class="safety-state">{{ 'WRITE ON' if publish_enabled else 'DRY RUN' }}</span>
     </section>
   </main>
 </div>

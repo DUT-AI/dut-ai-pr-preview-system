@@ -11,6 +11,7 @@ from app.security import new_csrf_token, verify_password
 from app.server.config import validate_repo
 from app.server.middleware import check_csrf, current_user, form_values
 from app.server.middleware import require_user, set_csrf_cookie, set_login_cookie
+from app.server.presentation import dashboard_summary, run_review_view
 from app.server.services import ingest_webhook, publish_run
 
 BASE = Path(__file__).resolve().parents[1] / "ui"
@@ -92,10 +93,15 @@ def create_router(config, store, github) -> APIRouter:
     @router.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request):
         require_user(request, config)
+        repositories = store.list_repositories()
         return page(
             request,
             "index.html",
-            {"repositories": store.list_repositories(), "publish_enabled": config.publish_enabled},
+            {
+                "repositories": repositories,
+                "summary": dashboard_summary(repositories),
+                "publish_enabled": config.publish_enabled,
+            },
         )
 
     @router.get("/repositories/{owner}/{repo}", response_class=HTMLResponse)
@@ -118,7 +124,15 @@ def create_router(config, store, github) -> APIRouter:
         detail = store.run_detail(run_id)
         if detail is None or detail["run"]["repository"] not in config.allowed_repositories:
             raise HTTPException(status_code=404, detail="run not found")
-        return page(request, "run.html", {**detail, "publish_enabled": config.publish_enabled})
+        return page(
+            request,
+            "run.html",
+            {
+                **detail,
+                "review": run_review_view(detail),
+                "publish_enabled": config.publish_enabled,
+            },
+        )
 
     @router.post("/runs/{run_id}/publish")
     async def publish(request: Request, run_id: int):

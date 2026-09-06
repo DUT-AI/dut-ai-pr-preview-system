@@ -23,11 +23,64 @@ class Store:
 
     def repository_detail(self, full_name):
         return {
-            "repository": {"full_name": full_name},
+            "repository": {
+                "full_name": full_name, "name": "dut-ai-pr-preview-system",
+                "default_branch": "main",
+            },
             "pull_requests": [],
             "jobs": [{
                 "id": 8, "pr_number": 9, "head_sha": "a" * 40,
                 "status": "running", "attempt": 1, "error": None,
+            }],
+        }
+
+    def run_detail(self, run_id):
+        if run_id != 7:
+            return None
+        return {
+            "run": {
+                "id": 7, "job_id": 8, "repository": "DUT-AI/dut-ai-pr-preview-system",
+                "pr_number": 9, "head_sha": "a" * 40, "status": "complete",
+                "created_at": "2026-09-06 10:00:00+00:00",
+                "findings": {
+                    "claims": [{
+                        "id": "C1", "status": "PASS",
+                        "evidence": ["app/ui/templates/run.html:1"],
+                        "note": "Rendered safely <script>alert(1)</script>",
+                    }],
+                    "docs": [{
+                        "path": "README.md", "status": "STALE",
+                        "what": "Old dashboard copy",
+                    }],
+                    "impact": [{
+                        "requirement": "Operator visibility", "impact": "CHANGED",
+                        "detail": "Structured tables are visible",
+                    }],
+                    "threads": [{
+                        "text": "Show the AI table", "status": "RESOLVED", "note": "Done",
+                    }],
+                    "unresolved_questions": [],
+                },
+                "report": "# Safe report\n<script>bad()</script>",
+                "preview_comment": "## DUT AI review\n<table><script>bad()</script></table>",
+            },
+            "pr": {
+                "title": "Improve dashboard", "body": "UI details",
+                "html_url": "https://github.com/DUT-AI/dut-ai-pr-preview-system/pull/9",
+                "changed_files": 2, "additions": 40, "deletions": 3,
+                "files": [{
+                    "filename": "app/ui/templates/run.html", "status": "modified",
+                    "additions": 30, "deletions": 2,
+                }],
+            },
+            "commits": [{"sha": "a" * 40, "message": "Improve UI"}],
+            "publish_audit": [{
+                "status": "success", "action": "update", "comment_id": 12345,
+                "head_sha": "a" * 40, "error": None,
+            }],
+            "logs": [{
+                "level": "info", "phase": "review", "message": "Review complete",
+                "created_at": "2026-09-06 10:01:00+00:00",
             }],
         }
 
@@ -98,3 +151,31 @@ def test_repository_page_shows_pipeline_job_status():
     assert response.status_code == 200
     assert "Trạng thái pipeline" in response.text
     assert "running" in response.text
+
+
+def test_run_page_shows_structured_review_and_escaped_exact_preview():
+    client = TestClient(create_app(config(), Store(), GitHub()))
+    page = client.get("/login")
+    csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+    client.post("/login", data={
+        "csrf": csrf, "username": "admin", "password": "test-pass",
+    })
+
+    response = client.get("/runs/7")
+
+    assert response.status_code == 200
+    assert "Bảng nhận xét của AI" in response.text
+    assert "Nội dung comment GitHub nguyên bản" in response.text
+    assert "app/ui/templates/run.html:1" in response.text
+    assert "Rendered safely &lt;script&gt;alert(1)&lt;/script&gt;" in response.text
+    assert "&lt;table&gt;&lt;script&gt;bad()&lt;/script&gt;&lt;/table&gt;" in response.text
+    assert "<script>bad()</script>" not in response.text
+    assert "https://github.com/DUT-AI/dut-ai-pr-preview-system/pull/9#issuecomment-12345" in response.text
+
+
+def test_dashboard_summary_handles_missing_optional_counts():
+    from app.server.presentation import dashboard_summary
+
+    assert dashboard_summary([{"pull_request_count": 2}, {"run_count": 3}]) == {
+        "repositories": 2, "pull_requests": 2, "runs": 3, "active_jobs": 0,
+    }
