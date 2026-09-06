@@ -18,6 +18,7 @@ commit và trạng thái publish đã được hệ thống ghi nhận.
 ### In
 
 - Đổi danh sách repository thành danh sách PR đã được hệ thống nhận và persist.
+- Persist trạng thái `closed`/`merged` mà không enqueue review thừa.
 - Thêm trang lịch sử riêng cho từng PR.
 - Hiện tất cả review run, job, commit và trạng thái publish của PR.
 - Cho phép đi từ repository → PR history → run detail và quay lại đúng tầng.
@@ -34,6 +35,7 @@ commit và trạng thái publish đã được hệ thống ghi nhận.
 - [x] Trang PR hiện mọi run đã persist, kể cả run cũ hơn run mới nhất.
 - [x] Trạng thái published/preview và số findings được trình bày rõ ràng.
 - [x] Route validate repository và PR number trước khi đọc dữ liệu.
+- [x] Webhook đóng/merge cập nhật history nhưng không tạo review job mới.
 - [x] Test, compileall và `git diff --check` pass.
 
 ## Security and external effects
@@ -53,7 +55,8 @@ git diff --check
 ## Evidence
 
 - Focused web tests: 7 passed trên Windows.
-- Full checkout hiện tại trong Linux development image: 295 passed.
+- Full checkout hiện tại trong Linux development image: 296 passed.
+- Focused webhook/web tests: 15 passed, gồm `closed` state-only và navigation.
 - PostgreSQL local query trả lịch sử PR #4 (3 runs) và PR #5 (1 run).
 - `python -m compileall src app` và `git diff --check`: pass.
 - Live PR, server và GitHub comment evidence được ghi bổ sung sau deployment.
