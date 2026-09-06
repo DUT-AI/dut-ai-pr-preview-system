@@ -24,13 +24,57 @@ class Store:
     def repository_detail(self, full_name):
         return {
             "repository": {
-                "full_name": full_name, "name": "dut-ai-pr-preview-system",
+                "full_name": full_name, "owner": "DUT-AI",
+                "name": "dut-ai-pr-preview-system",
                 "default_branch": "main",
             },
-            "pull_requests": [],
+            "pull_requests": [{
+                "number": 9, "title": "Improve dashboard", "author": "duytoan",
+                "head_ref": "dev", "base_ref": "main", "head_sha": "a" * 40,
+                "additions": 40, "deletions": 3, "latest_run_id": 7,
+                "latest_run_status": "complete", "run_count": 2,
+            }],
             "jobs": [{
                 "id": 8, "pr_number": 9, "head_sha": "a" * 40,
                 "status": "running", "attempt": 1, "error": None,
+            }],
+        }
+
+    def pull_request_detail(self, full_name, pr_number):
+        if pr_number != 9:
+            return None
+        return {
+            "repository": {
+                "full_name": full_name, "owner": "DUT-AI",
+                "name": "dut-ai-pr-preview-system", "default_branch": "main",
+            },
+            "pull_request": {
+                "number": 9, "title": "Improve dashboard", "author": "duytoan",
+                "head_ref": "dev", "base_ref": "main", "head_sha": "a" * 40,
+                "state": "open", "html_url": f"https://github.com/{full_name}/pull/9",
+                "changed_files": 2, "additions": 40, "deletions": 3,
+            },
+            "runs": [{
+                "id": 7, "head_sha": "a" * 40, "status": "complete",
+                "created_at": "2026-09-06 10:00:00+00:00",
+                "findings": {
+                    "claims": [{"status": "PASS"}], "docs": [],
+                    "impact": [], "threads": [], "unresolved_questions": [],
+                },
+                "comment_id": 12345,
+            }, {
+                "id": 6, "head_sha": "b" * 40, "status": "complete",
+                "created_at": "2026-09-06 09:00:00+00:00",
+                "findings": {"claims": [{"status": "FAIL"}]},
+                "comment_id": None,
+            }],
+            "jobs": [{
+                "id": 8, "pr_number": 9, "head_sha": "a" * 40,
+                "status": "complete", "attempt": 1, "error": None,
+                "created_at": "2026-09-06 09:59:00+00:00",
+            }],
+            "commits": [{
+                "sha": "a" * 40, "message": "Improve UI",
             }],
         }
 
@@ -149,8 +193,50 @@ def test_repository_page_shows_pipeline_job_status():
         "/repositories/DUT-AI/dut-ai-pr-preview-system"
     )
     assert response.status_code == 200
+    assert "Pull Request hệ thống đã nhận" in response.text
+    assert "2 lần review" in response.text
+    assert "/repositories/DUT-AI/dut-ai-pr-preview-system/pulls/9" in response.text
     assert "Trạng thái pipeline" in response.text
     assert "running" in response.text
+
+
+def test_pull_request_page_shows_all_review_runs_and_navigation():
+    client = TestClient(create_app(config(), Store(), GitHub()))
+    page = client.get("/login")
+    csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+    client.post("/login", data={
+        "csrf": csrf, "username": "admin", "password": "test-pass",
+    })
+
+    response = client.get(
+        "/repositories/DUT-AI/dut-ai-pr-preview-system/pulls/9"
+    )
+
+    assert response.status_code == 200
+    assert "Các lần AI đã review PR này" in response.text
+    assert "RUN #7" in response.text
+    assert "RUN #6" in response.text
+    assert 'href="/runs/7"' in response.text
+    assert 'href="/runs/6"' in response.text
+    assert "PUBLISHED" in response.text
+    assert "PREVIEW" in response.text
+    assert "https://github.com/DUT-AI/dut-ai-pr-preview-system/pull/9" in response.text
+
+
+def test_pull_request_page_rejects_invalid_or_unknown_number():
+    client = TestClient(create_app(config(), Store(), GitHub()))
+    page = client.get("/login")
+    csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
+    client.post("/login", data={
+        "csrf": csrf, "username": "admin", "password": "test-pass",
+    })
+
+    assert client.get(
+        "/repositories/DUT-AI/dut-ai-pr-preview-system/pulls/0"
+    ).status_code == 404
+    assert client.get(
+        "/repositories/DUT-AI/dut-ai-pr-preview-system/pulls/10"
+    ).status_code == 404
 
 
 def test_run_page_shows_structured_review_and_escaped_exact_preview():
@@ -164,6 +250,7 @@ def test_run_page_shows_structured_review_and_escaped_exact_preview():
     response = client.get("/runs/7")
 
     assert response.status_code == 200
+    assert 'href="/repositories/DUT-AI/dut-ai-pr-preview-system/pulls/9"' in response.text
     assert "Bảng nhận xét của AI" in response.text
     assert "Nội dung comment GitHub nguyên bản" in response.text
     assert "app/ui/templates/run.html:1" in response.text

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}PR #{{ pull_request.number }} · {{ repository.full_name }}{% endblock %}
+{% block shell %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <p class="side-label">WORKSPACE</p>
+    <a class="side-link" href="/dashboard"><span>◈</span>Tổng quan</a>
+    <p class="side-label">REPOSITORY</p>
+    <a class="side-link" href="/repositories/{{ repository.owner }}/{{ repository.name }}"><span>◫</span>{{ repository.name }}</a>
+    <p class="side-label">PULL REQUEST</p>
+    <a class="side-link active" href="#"><span>◉</span>PR #{{ pull_request.number }}</a>
+    <div class="worker"><i></i><span><b>History persisted</b><small>{{ review_runs|length }} review run · {{ jobs|length }} job</small></span></div>
+  </aside>
+  <main class="workspace">
+    <a class="back" href="/repositories/{{ repository.owner }}/{{ repository.name }}">← {{ repository.full_name }}</a>
+
+    <section class="review-hero pr-history-hero">
+      <div class="review-title">
+        <p class="label">PULL REQUEST #{{ pull_request.number }}</p>
+        <h1>{{ pull_request.title or 'Untitled pull request' }}</h1>
+        <p class="muted">{{ pull_request.author or 'unknown' }} · <code>{{ pull_request.head_ref }}</code> → <code>{{ pull_request.base_ref }}</code> · head <code>{{ pull_request.head_sha[:12] }}</code></p>
+      </div>
+      <div class="review-actions">
+        <span class="state large {{ pull_request.state|lower }}">{{ pull_request.state }}</span>
+        {% if pull_request.html_url %}<a class="secondary" href="{{ pull_request.html_url }}" target="_blank" rel="noreferrer">Mở trên GitHub ↗</a>{% endif %}
+      </div>
+    </section>
+
+    <section class="review-summary">
+      <article><small>REVIEW RUNS</small><strong>{{ review_runs|length }}</strong><span>Mọi kết quả đã persist</span></article>
+      <article><small>PIPELINE JOBS</small><strong>{{ jobs|length }}</strong><span>Lịch sử webhook/job</span></article>
+      <article><small>COMMITS</small><strong>{{ commits|length }}</strong><span>Commit snapshot mới nhất</span></article>
+      <article><small>CHANGED FILES</small><strong>{{ pull_request.changed_files or 0 }}</strong><span><b class="add">+{{ pull_request.additions or 0 }}</b> / <b class="del">-{{ pull_request.deletions or 0 }}</b></span></article>
+    </section>
+
+    <section class="content-grid history-grid">
+      <div class="review-main">
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">REVIEW HISTORY</p><h2>Các lần AI đã review PR này</h2><p class="panel-copy">Mỗi lần review được ghim vào một head SHA. Chọn một run để xem đầy đủ findings, payload và audit.</p></div></div>
+          <div class="run-history">
+            {% for item in review_runs %}
+            <a class="run-history-row" href="/runs/{{ item.id }}">
+              <span class="run-index">RUN #{{ item.id }}</span>
+              <span class="run-head"><b><code>{{ item.head_sha[:12] }}</code></b><small>{{ item.created_at }}</small></span>
+              <span class="history-metric"><b>{{ item.counts.claims }}</b><small>claims</small></span>
+              <span class="history-metric {{ 'risk' if item.counts.risks else '' }}"><b>{{ item.counts.risks }}</b><small>risks</small></span>
+              <span class="state {{ item.status|lower }}">{{ item.status }}</span>
+              {% if item.github_comment_url %}<span class="preview-badge published">PUBLISHED</span>{% else %}<span class="preview-badge">PREVIEW</span>{% endif %}
+              <span class="icon-link">→</span>
+            </a>
+            {% else %}<div class="empty"><b>Chưa có review run</b><span>PR đã được nhận nhưng pipeline chưa persist kết quả.</span></div>{% endfor %}
+          </div>
+        </article>
+      </div>
+
+      <aside class="review-side">
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">PIPELINE JOBS</p><h2>Lần xử lý đã nhận</h2></div><span class="count-pill">{{ jobs|length }}</span></div>
+          <div class="history-stack">{% for job in jobs %}<div><span class="state {{ job.status|lower }}">{{ job.status }}</span><p><b>Job #{{ job.id }}</b> · <code>{{ job.head_sha[:10] }}</code></p><small>Attempt {{ job.attempt }} · {{ job.created_at }}</small>{% if job.error %}<em>{{ job.error }}</em>{% endif %}</div>{% else %}<div class="empty compact"><b>Chưa có job</b></div>{% endfor %}</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">COMMITS</p><h2>Commit snapshot</h2></div><span class="count-pill">{{ commits|length }}</span></div>
+          <div class="commit-list">{% for commit in commits %}<div><code>{{ commit.sha[:8] }}</code><span>{{ commit.message or 'No commit message' }}</span></div>{% else %}<div class="empty compact"><b>Chưa có commit</b></div>{% endfor %}</div>
+        </article>
+      </aside>
+    </section>
+  </main>
+</div>
+{% endblock %}
