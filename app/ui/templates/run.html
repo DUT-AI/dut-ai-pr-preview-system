@@ -2,17 +2,130 @@
 {% block title %}Review #{{ run.pr_number }} · DUT AI{% endblock %}
 {% block shell %}
 <div class="app-shell">
-  <aside class="sidebar"><p class="side-label">WORKSPACE</p><a class="side-link" href="/dashboard">◈ &nbsp;Tổng quan</a><p class="side-label">REVIEW RUN</p><a class="side-link active" href="#">◉ &nbsp;#{{ run.pr_number }} · run {{ run.id }}</a><div class="worker"><i></i><span><b>Worker online</b><small>Log đã persist</small></span></div></aside>
-  <main class="workspace">
+  <aside class="sidebar">
+    <p class="side-label">WORKSPACE</p>
+    <a class="side-link" href="/dashboard"><span>◈</span>Tổng quan</a>
+    <p class="side-label">REVIEW RUN</p>
+    <a class="side-link active" href="#"><span>◉</span>PR #{{ run.pr_number }} · run {{ run.id }}</a>
+    <div class="worker"><i></i><span><b>Evidence persisted</b><small>Run log & output available</small></span></div>
+  </aside>
+  <main class="workspace review-workspace">
     <a class="back" href="/repositories/{{ run.repository.split('/')[0] }}/{{ run.repository.split('/')[1] }}">← {{ run.repository }}</a>
-    <div class="heading compact"><div><p class="label">REVIEW RUN #{{ run.id }}</p><h1>{{ pr.title if pr else 'Pull Request #' ~ run.pr_number }}</h1><p class="muted">{{ run.repository }} · PR #{{ run.pr_number }} · <code>{{ run.head_sha[:12] }}</code></p></div><span class="state {{ run.status }}">{{ run.status }}</span></div>
-    <section class="run-grid">
-      <article class="panel"><div class="panel-head"><div><p class="label">PR CONTENT</p><h2>Mô tả Pull Request</h2></div>{% if pr and pr.html_url %}<a href="{{ pr.html_url }}" target="_blank" rel="noreferrer">Mở GitHub ↗</a>{% endif %}</div><div class="pr-body">{{ pr.body if pr and pr.body else 'PR không có mô tả.' }}</div><div class="diff-summary"><span><b>{{ pr.changed_files if pr else 0 }}</b> files changed</span><span class="add">+{{ pr.additions if pr else 0 }}</span><span class="del">-{{ pr.deletions if pr else 0 }}</span></div></article>
-      <article class="panel"><div class="panel-head"><div><p class="label">PIPELINE LOG</p><h2>Tiến trình xử lý</h2></div></div>{% for log in logs %}<div class="log-line"><i class="log-dot {{ log.level }}"></i><div><b>{{ log.phase }}</b><p>{{ log.message }}</p><small>{{ log.created_at }}</small></div></div>{% else %}<div class="empty">Chưa có log database.</div>{% endfor %}</article>
+
+    <section class="review-hero">
+      <div class="review-title">
+        <p class="label">REVIEW RUN #{{ run.id }}</p>
+        <h1>{{ pr.title if pr else 'Pull Request #' ~ run.pr_number }}</h1>
+        <p class="muted">PR #{{ run.pr_number }} · <code>{{ run.head_sha[:12] }}</code> · {{ run.created_at or 'time unavailable' }}</p>
+      </div>
+      <div class="review-actions">
+        <span class="state large {{ run.status|lower }}">{{ run.status }}</span>
+        {% if pr and pr.html_url %}<a class="secondary" href="{{ pr.html_url }}" target="_blank" rel="noreferrer">Mở Pull Request ↗</a>{% endif %}
+      </div>
     </section>
-    <section class="run-grid lower">
-      <article class="panel"><div class="panel-head"><div><p class="label">REVIEW OUTPUT</p><h2>Báo cáo</h2></div></div><pre>{{ run.report or 'Chưa có báo cáo. Review có thể đang chờ worker hoặc đã thất bại.' }}</pre>{% if publish_enabled and run.preview_comment %}<form method="post" action="/runs/{{ run.id }}/publish"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary" type="submit">Đăng preview lên GitHub <span>→</span></button></form>{% endif %}</article>
-      <article class="panel"><div class="panel-head"><div><p class="label">CHANGED FILES</p><h2>Files trong PR</h2></div></div><div class="file-list">{% for file in (pr.files if pr else []) %}<div><i class="file-status {{ file.status }}">{{ file.status[:1]|upper }}</i><code>{{ file.filename }}</code><small><span class="add">+{{ file.additions }}</span> <span class="del">-{{ file.deletions }}</span></small></div>{% else %}<div class="empty">Chưa lưu file snapshot.</div>{% endfor %}</div></article>
+
+    <section class="review-summary">
+      <article><small>CLAIMS</small><strong>{{ review.counts.claims }}</strong><span>{{ review.counts.by_status.PASS }} passed</span></article>
+      <article class="{{ 'has-risk' if review.counts.risks else '' }}"><small>RISKS</small><strong>{{ review.counts.risks }}</strong><span>Fail, partial & impact</span></article>
+      <article class="{{ 'has-warning' if review.counts.doc_errors else '' }}"><small>DOC ERRORS</small><strong>{{ review.counts.doc_errors }}</strong><span>Wrong, stale, fabricated</span></article>
+      <article><small>CHANGED FILES</small><strong>{{ pr.changed_files if pr else 0 }}</strong><span><b class="add">+{{ pr.additions if pr else 0 }}</b> / <b class="del">-{{ pr.deletions if pr else 0 }}</b></span></article>
+    </section>
+
+    <section class="content-grid">
+      <div class="review-main">
+        <article class="panel comment-preview">
+          <div class="panel-head">
+            <div><p class="label">GITHUB COMMENT PREVIEW</p><h2>Bảng nhận xét của AI</h2><p class="panel-copy">Đây là dữ liệu review sẽ được trình bày trong comment GitHub.</p></div>
+            {% if review.github_comment_url %}<a class="secondary small" href="{{ review.github_comment_url }}" target="_blank" rel="noreferrer">Xem comment đã đăng ↗</a>{% else %}<span class="preview-badge">NOT PUBLISHED</span>{% endif %}
+          </div>
+
+          <details class="review-section" open>
+            <summary><span><i class="section-dot green"></i>Claims</span><b>{{ review.findings.claims|length }}</b></summary>
+            <div class="table-scroll">
+              <table><thead><tr><th>Claim</th><th>Status</th><th>Evidence</th><th>Notes</th></tr></thead>
+              <tbody>{% for claim in review.findings.claims %}<tr><td><code>{{ claim.id or '—' }}</code></td><td><span class="finding-status {{ (claim.status or 'unverified')|lower }}">{{ claim.status or 'UNVERIFIED' }}</span></td><td>{{ claim.evidence|join(', ') if claim.evidence else '—' }}</td><td>{{ claim.note or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="table-empty">Chưa có claim finding.</td></tr>{% endfor %}</tbody></table>
+            </div>
+          </details>
+
+          <details class="review-section" open>
+            <summary><span><i class="section-dot blue"></i>Docs vs reality</span><b>{{ review.findings.docs|length }}</b></summary>
+            <div class="table-scroll">
+              <table><thead><tr><th>Document</th><th>Status</th><th>Difference</th></tr></thead>
+              <tbody>{% for doc in review.findings.docs %}<tr><td><code>{{ doc.path or '—' }}</code></td><td><span class="finding-status {{ (doc.status or 'unverified')|lower }}">{{ doc.status or 'UNVERIFIED' }}</span></td><td>{{ doc.what or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có finding tài liệu.</td></tr>{% endfor %}</tbody></table>
+            </div>
+          </details>
+
+          <details class="review-section" open>
+            <summary><span><i class="section-dot amber"></i>Requirement impact</span><b>{{ review.findings.impact|length }}</b></summary>
+            <div class="table-scroll">
+              <table><thead><tr><th>Requirement</th><th>Impact</th><th>Detail</th></tr></thead>
+              <tbody>{% for item in review.findings.impact %}<tr><td>{{ item.requirement or '—' }}</td><td><span class="finding-status {{ (item.impact or 'unverified')|lower }}">{{ item.impact or 'UNVERIFIED' }}</span></td><td>{{ item.detail or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có requirement impact.</td></tr>{% endfor %}</tbody></table>
+            </div>
+          </details>
+
+          <details class="review-section">
+            <summary><span><i class="section-dot violet"></i>Review threads</span><b>{{ review.findings.threads|length }}</b></summary>
+            <div class="table-scroll">
+              <table><thead><tr><th>Comment</th><th>Status</th><th>Note</th></tr></thead>
+              <tbody>{% for thread in review.findings.threads %}<tr><td>{{ thread.text or '—' }}</td><td><span class="finding-status {{ (thread.status or 'unverified')|lower }}">{{ thread.status or 'UNVERIFIED' }}</span></td><td>{{ thread.note or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có review thread.</td></tr>{% endfor %}</tbody></table>
+            </div>
+          </details>
+
+          {% if review.findings.unresolved_questions %}
+          <div class="questions"><b>Câu hỏi chưa giải quyết</b>{% for question in review.findings.unresolved_questions %}<p>• {{ question }}</p>{% endfor %}</div>
+          {% endif %}
+
+          {% if publish_enabled and run.preview_comment %}
+          <form method="post" action="/runs/{{ run.id }}/publish">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="primary" type="submit">Đăng comment lên GitHub <span>→</span></button>
+          </form>
+          {% endif %}
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">PR CONTENT</p><h2>Mô tả Pull Request</h2></div></div>
+          <div class="pr-body">{{ pr.body if pr and pr.body else 'PR không có mô tả.' }}</div>
+          <div class="diff-summary"><span><b>{{ pr.changed_files if pr else 0 }}</b> files changed</span><span class="add">+{{ pr.additions if pr else 0 }} additions</span><span class="del">-{{ pr.deletions if pr else 0 }} deletions</span></div>
+        </article>
+
+        <article class="panel">
+          <details class="source-details">
+            <summary><span><p class="label">EXACT PAYLOAD</p><h2>Nội dung comment GitHub nguyên bản</h2></span><b>{{ 'AVAILABLE' if review.has_preview else 'EMPTY' }}</b></summary>
+            <p class="panel-copy">Markdown/HTML chính xác đã được pipeline persist. Nội dung được escape khi hiển thị để không thực thi HTML từ dữ liệu PR hoặc AI.</p>
+            <pre class="source-preview">{{ run.preview_comment or 'Chưa có preview comment.' }}</pre>
+          </details>
+        </article>
+
+        <article class="panel">
+          <details class="source-details">
+            <summary><span><p class="label">FULL REPORT</p><h2>Báo cáo Markdown</h2></span><b>VIEW SOURCE</b></summary>
+            <pre>{{ run.report or 'Chưa có báo cáo. Review có thể đang chờ worker hoặc đã thất bại.' }}</pre>
+          </details>
+        </article>
+      </div>
+
+      <aside class="review-side">
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">PIPELINE LOG</p><h2>Tiến trình xử lý</h2></div></div>
+          <div class="timeline">{% for log in logs %}<div class="log-line"><i class="log-dot {{ log.level|lower }}"></i><div><b>{{ log.phase }}</b><p>{{ log.message }}</p><small>{{ log.created_at }}</small></div></div>{% else %}<div class="empty compact"><b>Chưa có log</b><span>Worker chưa ghi log database.</span></div>{% endfor %}</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">CHANGED FILES</p><h2>Files trong PR</h2></div><span class="count-pill">{{ (pr.files if pr else [])|length }}</span></div>
+          <div class="file-list">{% for file in (pr.files if pr else []) %}<div><i class="file-status {{ file.status|lower }}">{{ file.status[:1]|upper }}</i><code title="{{ file.filename }}">{{ file.filename }}</code><small><span class="add">+{{ file.additions }}</span> <span class="del">-{{ file.deletions }}</span></small></div>{% else %}<div class="empty compact"><b>Chưa có file</b><span>Snapshot chưa lưu danh sách file.</span></div>{% endfor %}</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">COMMITS</p><h2>Commit snapshot</h2></div><span class="count-pill">{{ commits|length }}</span></div>
+          <div class="commit-list">{% for commit in commits %}<div><code>{{ commit.sha[:8] }}</code><span>{{ commit.message or 'No commit message' }}</span></div>{% else %}<div class="empty compact"><b>Chưa có commit</b></div>{% endfor %}</div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head"><div><p class="label">PUBLISH AUDIT</p><h2>Lịch sử GitHub</h2></div></div>
+          <div class="audit-list">{% for item in publish_audit %}<div><span class="finding-status {{ item.status|lower }}">{{ item.status }}</span><p><b>{{ item.action }}</b> · <code>{{ item.head_sha[:8] }}</code></p><small>{% if item.comment_id %}comment #{{ item.comment_id }}{% else %}{{ item.error or 'No comment created' }}{% endif %}</small></div>{% else %}<div class="empty compact"><b>Chưa publish</b><span>Không có tác động GitHub cho run này.</span></div>{% endfor %}</div>
+        </article>
+      </aside>
     </section>
   </main>
 </div>
