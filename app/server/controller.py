@@ -11,7 +11,11 @@ from app.security import new_csrf_token, verify_password
 from app.server.config import validate_repo
 from app.server.middleware import check_csrf, current_user, form_values
 from app.server.middleware import require_user, set_csrf_cookie, set_login_cookie
-from app.server.presentation import dashboard_summary, run_review_view
+from app.server.presentation import (
+    dashboard_summary,
+    pull_request_history_view,
+    run_review_view,
+)
 from app.server.services import ingest_webhook, publish_run
 
 BASE = Path(__file__).resolve().parents[1] / "ui"
@@ -130,6 +134,33 @@ def create_router(config, store, github) -> APIRouter:
             {
                 **detail,
                 "review": run_review_view(detail),
+                "publish_enabled": config.publish_enabled,
+            },
+        )
+
+    @router.get(
+        "/repositories/{owner}/{repo}/pulls/{pr_number}",
+        response_class=HTMLResponse,
+    )
+    def pull_request_page(
+        request: Request, owner: str, repo: str, pr_number: int
+    ):
+        require_user(request, config)
+        try:
+            full_name = validate_repo(f"{owner}/{repo}")
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="pull request not found") from exc
+        if full_name not in config.allowed_repositories or pr_number <= 0:
+            raise HTTPException(status_code=404, detail="pull request not found")
+        detail = store.pull_request_detail(full_name, pr_number)
+        if detail is None:
+            raise HTTPException(status_code=404, detail="pull request not found")
+        return page(
+            request,
+            "pull_request.html",
+            {
+                **detail,
+                "review_runs": pull_request_history_view(detail),
                 "publish_enabled": config.publish_enabled,
             },
         )

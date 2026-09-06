@@ -289,7 +289,10 @@ class PostgresStore:
                 return None
             prs = list(connection.execute(
                 """SELECT p.*, latest.id AS latest_run_id,
-                   latest.status AS latest_run_status, latest.created_at AS run_created_at
+                   latest.status AS latest_run_status, latest.created_at AS run_created_at,
+                   (SELECT COUNT(*) FROM runs history
+                    WHERE history.repository=%s AND history.pr_number=p.number)
+                     AS run_count
                    FROM pull_requests p
                    LEFT JOIN LATERAL (
                      SELECT id,status,created_at FROM runs
@@ -297,7 +300,7 @@ class PostgresStore:
                      ORDER BY created_at DESC LIMIT 1
                    ) latest ON TRUE
                    WHERE p.repository_id=%s ORDER BY p.updated_at DESC""",
-                (full_name, repo["id"]),
+                (full_name, full_name, repo["id"]),
             ).fetchall())
             jobs = list(connection.execute(
                 """SELECT id,pr_number,head_sha,status,attempt,error,
@@ -307,6 +310,64 @@ class PostgresStore:
                 (full_name,),
             ).fetchall())
             return {"repository": repo, "pull_requests": prs, "jobs": jobs}
+
+    def pull_request_detail(
+        self, full_name: str, pr_number: int
+    ) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            pr = connection.execute(
+                """SELECT p.*, r.full_name AS repository,
+                   r.owner, r.name AS repository_name, r.default_branch
+                   FROM pull_requests p JOIN repositories r
+                     ON r.id=p.repository_id
+                   WHERE r.full_name=%s AND p.number=%s""",
+                (full_name, pr_number),
+            ).fetchone()
+            if not pr:
+                return None
+            runs = list(connection.execute(
+                """SELECT review.id,review.job_id,review.repository,
+                   review.pr_number,review.head_sha,review.status,
+                   review.findings,review.created_at,review.completed_at,
+                   published.comment_id,
+                   published.created_at AS published_at
+                   FROM runs review
+                   LEFT JOIN LATERAL (
+                     SELECT comment_id,created_at FROM publish_audit
+                     WHERE run_id=review.id AND status='success'
+                       AND comment_id IS NOT NULL
+                     ORDER BY created_at DESC LIMIT 1
+                   ) published ON TRUE
+                   WHERE review.repository=%s AND review.pr_number=%s
+                   ORDER BY review.created_at DESC, review.id DESC""",
+                (full_name, pr_number),
+            ).fetchall())
+            jobs = list(connection.execute(
+                """SELECT id,pr_number,head_sha,status,attempt,error,
+                   created_at,updated_at
+                   FROM jobs WHERE repository=%s AND pr_number=%s
+                   ORDER BY created_at DESC, id DESC""",
+                (full_name, pr_number),
+            ).fetchall())
+            commits = list(connection.execute(
+                """SELECT c.* FROM commits c JOIN repositories r
+                   ON r.id=c.repository_id
+                   WHERE r.full_name=%s AND c.pr_number=%s
+                   ORDER BY c.committed_at DESC NULLS LAST, c.sha""",
+                (full_name, pr_number),
+            ).fetchall())
+            return {
+                "repository": {
+                    "full_name": pr["repository"],
+                    "owner": pr["owner"],
+                    "name": pr["repository_name"],
+                    "default_branch": pr["default_branch"],
+                },
+                "pull_request": pr,
+                "runs": runs,
+                "jobs": jobs,
+                "commits": commits,
+            }
 
     def record_job_log(self, job_id: int, phase: str, message: str,
                        level: str = "info") -> None:

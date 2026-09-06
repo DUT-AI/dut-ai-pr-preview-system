@@ -31,6 +31,7 @@
 
 | ID | Parent | Evidence |
 |---|---|---|
+| [WI-WEB-003](WI-WEB-003.md) | INIT-04/05 | Repository → PR history → mọi review run; Linux 295 passed |
 | [WI-WEB-002](WI-WEB-002.md) | INIT-04/05 | Landing/dashboard/repository/run detail mới; exact GitHub preview được escape; Docker Linux 293 passed |
 | [WI-E2E-002](WI-E2E-002.md) | INIT-01/04 | PR #2 live review, exact comment read-back, guarded merge `1c235465`, and branch cleanup complete |
 | WI-AUDIT-001 | INIT-01 | Static audit ghi tại `reviews/SECURITY-BASELINE.md` |
