@@ -6,6 +6,7 @@ import pytest
 
 from app.server.config import ServerConfig
 from app.server.models import ReviewJob, ReviewOutput
+from app.server.repositories import PostgresStore
 from app.server.services import process_one_job
 
 
@@ -76,6 +77,54 @@ class Engine:
         )
 
 
+def test_postgres_store_claim_job_builds_review_job(monkeypatch):
+    row = {
+        "id": 7,
+        "delivery_id": "delivery-7",
+        "repository": "DUT-AI/dut-ai-pr-preview-system",
+        "pr_number": 4,
+        "head_sha": "a" * 40,
+        "attempt": 1,
+        "lease_id": "worker-1",
+    }
+
+    class Result:
+        rowcount = 0
+
+        def __init__(self, value=None):
+            self.value = value
+
+        def fetchone(self):
+            return self.value
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def execute(self, query, params=()):
+            if "RETURNING id,delivery_id" in query:
+                return Result(row)
+            return Result()
+
+    store = PostgresStore("postgresql://unused")
+    monkeypatch.setattr(store, "_connect", Connection)
+
+    job = store.claim_job("worker-1")
+
+    assert job == ReviewJob(
+        id=7,
+        delivery_id="delivery-7",
+        repository="DUT-AI/dut-ai-pr-preview-system",
+        pr_number=4,
+        head_sha="a" * 40,
+        attempt=1,
+        lease_id="worker-1",
+    )
+
+
 def test_process_one_job_connects_snapshot_workspace_engine_and_store(tmp_path):
     store = Store()
 
@@ -105,7 +154,24 @@ def test_process_one_job_persists_failure(tmp_path):
         config(tmp_path), store, GitHub(), FailedEngine(), lease_id="worker-1"
     )
     assert store.completed is None
-    assert store.failed[1] == "model failed"
+    assert store.failed[1] == "review engine failed: model failed"
+    assert store.failed_retry is True
+
+
+def test_process_one_job_persists_github_snapshot_phase(tmp_path):
+    class FailedGitHub(GitHub):
+        def snapshot(self, repository, pr_number):
+            raise OSError("network unreachable")
+
+        def download_workspace(self, repository, ref, target):
+            pytest.fail("snapshot failures must stop before download")
+
+    store = Store()
+    assert process_one_job(
+        config(tmp_path), store, FailedGitHub(), Engine(), lease_id="worker-1"
+    )
+    assert store.completed is None
+    assert store.failed[1] == "github snapshot failed: network unreachable"
     assert store.failed_retry is True
 
 

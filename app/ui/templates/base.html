@@ -3,19 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{% block title %}DUT AI PR Preview{% endblock %}</title>
+  <title>{% block title %}DUT AI PR Review{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
-  <header>
-    <a href="/" class="brand">DUT AI <span>PR Preview</span></a>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="{% if current_user %}/dashboard{% else %}/{% endif %}">
+      <b>D</b><span>DUT AI</span><small>PR REVIEW</small>
+    </a>
     {% if csrf %}
     <form method="post" action="/logout">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <button class="link" type="submit">Đăng xuất</button>
+      <button class="quiet" type="submit">Đăng xuất</button>
     </form>
     {% endif %}
   </header>
+  {% block shell %}
   <main>{% block content %}{% endblock %}</main>
+  {% endblock %}
 </body>
 </html>

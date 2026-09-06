@@ -1,18 +1,37 @@
 {% extends "base.html" %}
-{% block content %}
-<section class="hero">
-  <div><p class="eyebrow">OVERVIEW</p><h1>Repository đang theo dõi</h1></div>
-  <span class="badge {{ 'live' if publish_enabled else '' }}">{{ 'Publish enabled' if publish_enabled else 'Preview only' }}</span>
-</section>
-<section class="grid">
-{% for repo in repositories %}
-  <a class="card repo-card" href="/repositories/{{ repo.owner }}/{{ repo.name }}">
-    <p class="muted">{{ repo.owner }}</p><h2>{{ repo.name }}</h2>
-    <div class="metrics"><span><b>{{ repo.pull_request_count }}</b> PR</span><span><b>{{ repo.run_count }}</b> review</span><span><b>{{ repo.active_job_count }}</b> đang xử lý</span></div>
-    <p class="mono">{{ repo.default_branch or 'branch chưa đồng bộ' }}</p>
-  </a>
-{% else %}
-  <div class="card empty"><h2>Chưa có dữ liệu</h2><p>Worker sẽ đồng bộ repository từ installation của GitHub App.</p></div>
-{% endfor %}
-</section>
+{% block title %}Dashboard · DUT AI{% endblock %}
+{% block shell %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <p class="side-label">WORKSPACE</p>
+    <a class="side-link active" href="/dashboard">◈ &nbsp;Tổng quan</a>
+    <p class="side-label">MONITORED</p>
+    {% for repo in repositories %}
+    <a class="side-link" href="/repositories/{{ repo.owner }}/{{ repo.name }}">◫ &nbsp;{{ repo.name }}</a>
+    {% endfor %}
+    <div class="worker"><i></i><span><b>Worker online</b><small>Queue đang hoạt động</small></span></div>
+  </aside>
+  <main class="workspace">
+    <div class="heading">
+      <div><p class="label">OVERVIEW / {{ repositories|length }} REPOSITORY</p><h1>Chào mừng trở lại.</h1><p class="muted">Tổng quan hoạt động review của DUT AI Club.</p></div>
+      <span class="mode"><i></i>{{ 'PUBLISH ENABLED' if publish_enabled else 'PREVIEW ONLY' }}{% if not publish_enabled %}<small>Preview only</small>{% endif %}</span>
+    </div>
+    <section class="stats">
+      <article><span class="stat-icon blue">◫</span><div><small>PULL REQUESTS</small><strong>{{ repositories|sum(attribute='pull_request_count') }}</strong><em>Đang theo dõi</em></div></article>
+      <article><span class="stat-icon green">✓</span><div><small>REVIEW RUNS</small><strong>{{ repositories|sum(attribute='run_count') }}</strong><em>Đã xử lý</em></div></article>
+      <article><span class="stat-icon amber">◌</span><div><small>ACTIVE JOBS</small><strong>{{ repositories|sum(attribute='active_job_count') }}</strong><em>Trong hàng đợi</em></div></article>
+    </section>
+    <div class="section-title"><p class="label">REPOSITORIES</p><h2>Kho đang theo dõi</h2></div>
+    <section class="repo-list">
+      {% for repo in repositories %}
+      <a class="repo-row" href="/repositories/{{ repo.owner }}/{{ repo.name }}">
+        <span class="repo-icon">{{ repo.name[:1]|upper }}</span>
+        <span class="repo-name"><b>{{ repo.name }}</b><small>{{ repo.owner }} · default: {{ repo.default_branch or 'unknown' }}</small></span>
+        <span class="row-metric"><b>{{ repo.pull_request_count }}</b><small>PR</small></span>
+        <span class="row-metric"><b>{{ repo.run_count }}</b><small>REVIEWS</small></span><span class="arrow">→</span>
+      </a>
+      {% else %}<div class="empty">Chưa có repository được đồng bộ.</div>{% endfor %}
+    </section>
+  </main>
+</div>
 {% endblock %}

@@ -51,7 +51,11 @@ def config() -> ServerConfig:
 
 def test_login_protects_dashboard_and_uses_csrf():
     client = TestClient(create_app(config(), Store(), GitHub()))
-    assert client.get("/").status_code == 401
+    landing = client.get("/")
+    assert landing.status_code == 200
+    assert "He thong PR Review cua CLB" in landing.text
+    assert 'href="/login"' in landing.text
+    assert client.get("/dashboard").status_code == 401
     page = client.get("/login")
     csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
 
@@ -66,7 +70,8 @@ def test_login_protects_dashboard_and_uses_csrf():
         "csrf": csrf, "username": "admin", "password": "test-pass",
     }, follow_redirects=False)
     assert logged_in.status_code == 303
-    dashboard = client.get("/")
+    assert logged_in.headers["location"] == "/dashboard"
+    dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert "DUT-AI" in dashboard.text
     assert "Preview only" in dashboard.text

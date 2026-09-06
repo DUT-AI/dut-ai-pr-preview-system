@@ -19,6 +19,7 @@ the reply text for the session log.
 import json
 import subprocess
 import sys
+import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -396,6 +397,7 @@ def _execute(cfg: dict, workspace: Path, session_dir: Path, task: dict,
     except (RuntimeError, OSError, ValueError, TimeoutError) as e:
         print(f"      {task['name']}: FAILED after "
               f"{time.monotonic() - started:.0f}s — {e}", flush=True)
+        traceback.print_exc(file=sys.stdout)
         return task, None, str(e)
 
 

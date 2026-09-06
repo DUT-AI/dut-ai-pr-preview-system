@@ -1,16 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Review #{{ run.pr_number }} · DUT AI{% endblock %}
-{% block content %}
-<p class="eyebrow">REVIEW RUN #{{ run.id }}</p>
-<h1>{{ run.repository }} · PR #{{ run.pr_number }}</h1>
-<div class="run-meta"><span class="badge live">{{ run.status }}</span><span class="mono">{{ run.head_sha }}</span></div>
-<div class="columns">
-  <section class="card"><h2>Preview comment</h2><pre>{{ run.preview_comment or 'Chưa có preview.' }}</pre>
-  {% if publish_enabled and run.preview_comment %}<form method="post" action="/runs/{{ run.id }}/publish">
-    <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger" type="submit">Đăng comment lên GitHub</button>
-  </form>{% endif %}</section>
-  <section class="card"><h2>Commit history</h2><ul class="commits">{% for commit in commits %}<li><code>{{ commit.sha[:8] }}</code><span>{{ commit.message.split('\n')[0] }}</span><small>{{ commit.author }}</small></li>{% else %}<li>Không có commit.</li>{% endfor %}</ul></section>
+{% block shell %}
+<div class="app-shell">
+  <aside class="sidebar"><p class="side-label">WORKSPACE</p><a class="side-link" href="/dashboard">◈ &nbsp;Tổng quan</a><p class="side-label">REVIEW RUN</p><a class="side-link active" href="#">◉ &nbsp;#{{ run.pr_number }} · run {{ run.id }}</a><div class="worker"><i></i><span><b>Worker online</b><small>Log đã persist</small></span></div></aside>
+  <main class="workspace">
+    <a class="back" href="/repositories/{{ run.repository.split('/')[0] }}/{{ run.repository.split('/')[1] }}">← {{ run.repository }}</a>
+    <div class="heading compact"><div><p class="label">REVIEW RUN #{{ run.id }}</p><h1>{{ pr.title if pr else 'Pull Request #' ~ run.pr_number }}</h1><p class="muted">{{ run.repository }} · PR #{{ run.pr_number }} · <code>{{ run.head_sha[:12] }}</code></p></div><span class="state {{ run.status }}">{{ run.status }}</span></div>
+    <section class="run-grid">
+      <article class="panel"><div class="panel-head"><div><p class="label">PR CONTENT</p><h2>Mô tả Pull Request</h2></div>{% if pr and pr.html_url %}<a href="{{ pr.html_url }}" target="_blank" rel="noreferrer">Mở GitHub ↗</a>{% endif %}</div><div class="pr-body">{{ pr.body if pr and pr.body else 'PR không có mô tả.' }}</div><div class="diff-summary"><span><b>{{ pr.changed_files if pr else 0 }}</b> files changed</span><span class="add">+{{ pr.additions if pr else 0 }}</span><span class="del">-{{ pr.deletions if pr else 0 }}</span></div></article>
+      <article class="panel"><div class="panel-head"><div><p class="label">PIPELINE LOG</p><h2>Tiến trình xử lý</h2></div></div>{% for log in logs %}<div class="log-line"><i class="log-dot {{ log.level }}"></i><div><b>{{ log.phase }}</b><p>{{ log.message }}</p><small>{{ log.created_at }}</small></div></div>{% else %}<div class="empty">Chưa có log database.</div>{% endfor %}</article>
+    </section>
+    <section class="run-grid lower">
+      <article class="panel"><div class="panel-head"><div><p class="label">REVIEW OUTPUT</p><h2>Báo cáo</h2></div></div><pre>{{ run.report or 'Chưa có báo cáo. Review có thể đang chờ worker hoặc đã thất bại.' }}</pre>{% if publish_enabled and run.preview_comment %}<form method="post" action="/runs/{{ run.id }}/publish"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="primary" type="submit">Đăng preview lên GitHub <span>→</span></button></form>{% endif %}</article>
+      <article class="panel"><div class="panel-head"><div><p class="label">CHANGED FILES</p><h2>Files trong PR</h2></div></div><div class="file-list">{% for file in (pr.files if pr else []) %}<div><i class="file-status {{ file.status }}">{{ file.status[:1]|upper }}</i><code>{{ file.filename }}</code><small><span class="add">+{{ file.additions }}</span> <span class="del">-{{ file.deletions }}</span></small></div>{% else %}<div class="empty">Chưa lưu file snapshot.</div>{% endfor %}</div></article>
+    </section>
+  </main>
 </div>
-<section class="card"><h2>Báo cáo</h2><pre>{{ run.report or 'Chưa có báo cáo.' }}</pre></section>
-<section class="card"><h2>Lịch sử publish</h2><ul>{% for item in publish_audit %}<li>{{ item.created_at }} · {{ item.status }} · {{ item.action }}{% if item.comment_id %} · comment {{ item.comment_id }}{% endif %}</li>{% else %}<li>Chưa đăng comment.</li>{% endfor %}</ul></section>
 {% endblock %}
