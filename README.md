@@ -129,6 +129,8 @@ lists Pull Requests that this service has received and persisted; it is not a
 live mirror of every Pull Request ever created on GitHub. Select a Pull Request
 to open its history page, then select any persisted review run to inspect its
 findings, exact comment preview, pipeline log, and publication audit.
+Accepted PR webhooks persist metadata immediately. A `closed` event updates the
+history state to `closed` or `merged` without scheduling another AI review.
 
 ## Docker deployment
 

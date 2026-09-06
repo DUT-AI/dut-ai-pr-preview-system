@@ -86,6 +86,9 @@ class PostgresStore:
             ).fetchone()
             if not inserted:
                 return False
+            self._upsert_webhook_pull_request(
+                connection, payload, repository, pr_number, head_sha
+            )
             connection.execute(
                 """INSERT INTO jobs
                    (delivery_id,repository,pr_number,head_sha,status)
@@ -93,6 +96,61 @@ class PostgresStore:
                 (delivery_id, repository, pr_number, head_sha),
             )
             return True
+
+    def record_delivery_without_enqueue(
+        self, delivery_id: str, event: str, action: str,
+        payload: dict[str, Any], repository: str, pr_number: int,
+        head_sha: str,
+    ) -> bool:
+        """Persist a PR state transition without scheduling an AI review."""
+        with self._connect() as connection:
+            inserted = connection.execute(
+                """INSERT INTO deliveries (delivery_id,event,action,payload)
+                   VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING
+                   RETURNING delivery_id""",
+                (delivery_id, event, action, self._json(payload)),
+            ).fetchone()
+            if not inserted:
+                return False
+            self._upsert_webhook_pull_request(
+                connection, payload, repository, pr_number, head_sha
+            )
+            return True
+
+    def _upsert_webhook_pull_request(
+        self, connection, payload: dict[str, Any], repository: str,
+        pr_number: int, head_sha: str,
+    ) -> None:
+        """Keep PR identity and state current as soon as its webhook is accepted."""
+        pull_request = payload.get("pull_request") or {}
+        state = "merged" if pull_request.get("merged") else (
+            str(pull_request.get("state") or "open")
+        )
+        connection.execute(
+            """INSERT INTO pull_requests
+               (repository_id,number,title,body,author,base_ref,head_ref,
+                head_sha,state,html_url)
+               SELECT id,%s,%s,%s,%s,%s,%s,%s,%s,%s FROM repositories
+               WHERE full_name=%s
+               ON CONFLICT (repository_id,number) DO UPDATE SET
+                 title=EXCLUDED.title,body=EXCLUDED.body,
+                 author=EXCLUDED.author,base_ref=EXCLUDED.base_ref,
+                 head_ref=EXCLUDED.head_ref,head_sha=EXCLUDED.head_sha,
+                 state=EXCLUDED.state,html_url=EXCLUDED.html_url,
+                 updated_at=NOW()""",
+            (
+                pr_number,
+                str(pull_request.get("title") or ""),
+                str(pull_request.get("body") or ""),
+                str((pull_request.get("user") or {}).get("login") or ""),
+                str((pull_request.get("base") or {}).get("ref") or ""),
+                str((pull_request.get("head") or {}).get("ref") or ""),
+                head_sha,
+                state,
+                pull_request.get("html_url"),
+                repository,
+            ),
+        )
 
     def _recover_stale_jobs(self, connection) -> int:
         """Return abandoned running jobs to the queue after their lease expires."""

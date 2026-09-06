@@ -14,10 +14,15 @@ from app.server.services import ingest_webhook
 class Store:
     def __init__(self):
         self.calls = []
+        self.state_calls = []
 
     def record_delivery_and_enqueue(self, *args):
         self.calls.append(args)
         return len(self.calls) == 1
+
+    def record_delivery_without_enqueue(self, *args):
+        self.state_calls.append(args)
+        return len(self.state_calls) == 1
 
 
 def config() -> ServerConfig:
@@ -45,7 +50,14 @@ def payload():
     return {
         "action": "opened", "installation": {"id": 42}, "number": 7,
         "repository": {"full_name": "DUT-AI/dut-ai-pr-preview-system"},
-        "pull_request": {"head": {"sha": "a" * 40}},
+        "pull_request": {
+            "title": "History UI", "body": "PR body",
+            "user": {"login": "duytoan"},
+            "base": {"ref": "main"},
+            "head": {"ref": "dev", "sha": "a" * 40},
+            "state": "open", "merged": False,
+            "html_url": "https://github.com/DUT-AI/dut-ai-pr-preview-system/pull/7",
+        },
     }
 
 
@@ -72,6 +84,24 @@ def test_webhook_rejects_repository_outside_allowlist():
     body = json.dumps(data).encode()
     with pytest.raises(PermissionError, match="allowlisted"):
         ingest_webhook(body, signed_headers(body), config(), Store())
+
+
+def test_closed_webhook_updates_history_without_enqueuing_review():
+    data = payload()
+    data["action"] = "closed"
+    data["pull_request"]["state"] = "closed"
+    data["pull_request"]["merged"] = True
+    body = json.dumps(data).encode()
+    store = Store()
+
+    first = ingest_webhook(body, signed_headers(body), config(), store)
+    second = ingest_webhook(body, signed_headers(body), config(), store)
+
+    assert first == {"accepted": True, "queued": False, "duplicate": False}
+    assert second == {"accepted": True, "queued": False, "duplicate": True}
+    assert store.calls == []
+    assert len(store.state_calls) == 2
+    assert store.state_calls[0][2] == "closed"
 
 
 @pytest.mark.parametrize("value", ["../repo", "owner/../../repo", "one", "a/b/c"])

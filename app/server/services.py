@@ -12,6 +12,7 @@ from app.security import verify_webhook_signature
 from app.server.config import ServerConfig, validate_repo
 
 _ACTIONS = {"opened", "reopened", "synchronize", "ready_for_review"}
+_STATE_ONLY_ACTIONS = {"closed"}
 _DELIVERY_RE = re.compile(r"^[A-Za-z0-9-]{1,100}$")
 _SHA_RE = re.compile(r"^[0-9a-fA-F]{40,64}$")
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ def ingest_webhook(
     if event != "pull_request":
         return {"accepted": False, "queued": False, "reason": "event ignored"}
     action = str(payload.get("action", ""))
-    if action not in _ACTIONS:
+    if action not in _ACTIONS | _STATE_ONLY_ACTIONS:
         return {"accepted": False, "queued": False, "reason": "action ignored"}
     installation_id = int((payload.get("installation") or {}).get("id") or 0)
     if installation_id != config.github_installation_id:
@@ -64,6 +65,16 @@ def ingest_webhook(
     head_sha = str((pull_request.get("head") or {}).get("sha") or "")
     if pr_number <= 0 or not _SHA_RE.fullmatch(head_sha):
         raise ValueError("webhook PR identity is invalid")
+    if action in _STATE_ONLY_ACTIONS:
+        recorded = store.record_delivery_without_enqueue(
+            delivery_id, event, action, payload, repository, pr_number, head_sha
+        )
+        logger.info(
+            "webhook accepted event=%s action=%s delivery=%s repository=%s "
+            "pr=%s head=%s queued=False",
+            event, action, delivery_id, repository, pr_number, _short_sha(head_sha),
+        )
+        return {"accepted": True, "queued": False, "duplicate": not recorded}
     queued = store.record_delivery_and_enqueue(
         delivery_id, event, action, payload, repository, pr_number, head_sha
     )
