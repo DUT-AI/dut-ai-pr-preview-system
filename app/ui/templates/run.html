@@ -75,12 +75,6 @@
           <div class="questions"><b>Câu hỏi chưa giải quyết</b>{% for question in review.findings.unresolved_questions %}<p>• {{ question }}</p>{% endfor %}</div>
           {% endif %}
 
-          {% if publish_enabled and run.preview_comment %}
-          <form method="post" action="/runs/{{ run.id }}/publish">
-            <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button class="primary" type="submit">Đăng comment lên GitHub <span>→</span></button>
-          </form>
-          {% endif %}
         </article>
 
         <article class="panel">

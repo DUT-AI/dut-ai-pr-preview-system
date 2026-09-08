@@ -22,6 +22,16 @@ def _short_sha(value: str) -> str:
     return value[:10] if value else "-"
 
 
+def _safe_error(config: ServerConfig, exc: Exception) -> str:
+    message = str(exc)
+    for secret in (
+        config.github_webhook_secret, config.session_secret, config.llm_api_key
+    ):
+        if secret:
+            message = message.replace(secret, "[REDACTED]")
+    return message
+
+
 def _job_log(store, job, phase: str, message: str, level: str = "info") -> None:
     """Persist operational breadcrumbs when the store supports them."""
     record = getattr(store, "record_job_log", None)
@@ -185,12 +195,48 @@ def process_one_job(
                 job.id, phase, output.session_path,
             )
             _job_log(store, job, phase, "ok")
-        store.complete_job(job, snapshot, output)
+        run_id = store.complete_job(job, snapshot, output)
         logger.info(
             "job complete id=%s repository=%s pr=%s head=%s",
             job.id, job.repository, job.pr_number, _short_sha(job.head_sha),
         )
         _job_log(store, job, "complete", "review persisted")
+        if config.publish_enabled:
+            phase = "github publish"
+            _job_log(store, job, phase, "automatic publish started")
+            try:
+                result = publish_run(config, store, github, run_id)
+            except Exception as exc:
+                # The review is already complete and durable. Publication has
+                # its own audit record, so a GitHub failure must not retry the
+                # expensive review or overwrite the completed job state.
+                safe_error = _safe_error(config, exc)
+                logger.error(
+                    "automatic publish failed run=%s repository=%s pr=%s head=%s "
+                    "error=%s",
+                    run_id, job.repository, job.pr_number, _short_sha(job.head_sha),
+                    safe_error,
+                )
+                _job_log(
+                    store, job, phase,
+                    f"automatic publish failed: {safe_error}", "error",
+                )
+            else:
+                logger.info(
+                    "automatic publish ok run=%s repository=%s pr=%s head=%s "
+                    "action=%s comment=%s",
+                    run_id, job.repository, job.pr_number, _short_sha(job.head_sha),
+                    result["action"], result["comment_id"],
+                )
+                _job_log(
+                    store,
+                    job,
+                    phase,
+                    "automatic publish ok; action=%s; comment=%s"
+                    % (result["action"], result["comment_id"]),
+                )
+        else:
+            _job_log(store, job, "github publish", "skipped; publication disabled")
     except KeyboardInterrupt:
         store.interrupt_job(job, "worker interrupted by shutdown signal; retrying")
         raise
@@ -200,12 +246,7 @@ def process_one_job(
             job.id, phase, job.repository, job.pr_number, _short_sha(job.head_sha),
         )
         _job_log(store, job, phase, str(exc), "error")
-        message = f"{phase} failed: {exc}"
-        for secret in (
-            config.github_webhook_secret, config.session_secret, config.llm_api_key
-        ):
-            if secret:
-                message = message.replace(secret, "[REDACTED]")
+        message = f"{phase} failed: {_safe_error(config, exc)}"
         store.fail_job(job, message)
     finally:
         heartbeat_stop.set()
@@ -238,5 +279,7 @@ def publish_run(config: ServerConfig, store, github, run_id: int) -> dict[str, A
         )
         return result
     except Exception as exc:
-        store.record_publish(run_id, run["head_sha"], "failed", error=str(exc))
+        store.record_publish(
+            run_id, run["head_sha"], "failed", error=_safe_error(config, exc)
+        )
         raise

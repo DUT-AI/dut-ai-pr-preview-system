@@ -133,7 +133,7 @@ class GitHub:
     pass
 
 
-def config() -> ServerConfig:
+def config(*, publish_enabled: bool = False) -> ServerConfig:
     return ServerConfig(
         database_url="postgresql://unused", github_app_id="1",
         github_installation_id=42, github_private_key_path=Path("unused.pem"),
@@ -142,7 +142,7 @@ def config() -> ServerConfig:
         admin_username="admin", admin_password_hash=hash_password("test-pass"),
         session_secret="session-secret", session_secure=False,
         llm_base_url="https://llm2.dutai.site/v1", llm_model="model",
-        llm_api_key="", publish_enabled=False, session_root=Path("sessions"),
+        llm_api_key="", publish_enabled=publish_enabled, session_root=Path("sessions"),
     )
 
 
@@ -240,7 +240,7 @@ def test_pull_request_page_rejects_invalid_or_unknown_number():
 
 
 def test_run_page_shows_structured_review_and_escaped_exact_preview():
-    client = TestClient(create_app(config(), Store(), GitHub()))
+    client = TestClient(create_app(config(publish_enabled=True), Store(), GitHub()))
     page = client.get("/login")
     csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
     client.post("/login", data={
@@ -258,6 +258,7 @@ def test_run_page_shows_structured_review_and_escaped_exact_preview():
     assert "&lt;table&gt;&lt;script&gt;bad()&lt;/script&gt;&lt;/table&gt;" in response.text
     assert "<script>bad()</script>" not in response.text
     assert "https://github.com/DUT-AI/dut-ai-pr-preview-system/pull/9#issuecomment-12345" in response.text
+    assert "Đăng comment lên GitHub" not in response.text
 
 
 def test_dashboard_summary_handles_missing_optional_counts():
