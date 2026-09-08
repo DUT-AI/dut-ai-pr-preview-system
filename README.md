@@ -6,8 +6,8 @@ the review engine is adapted from Nexpeak's MIT-licensed
 [`deepseek-harness-pr-review`](https://github.com/nexpeakcore/deepseek-harness-pr-review).
 
 The default policy is preview-only: a worker stores the review result and
-comment preview in PostgreSQL, while publication requires an authenticated
-admin action and `PUBLISH_ENABLED=true`.
+comment preview in PostgreSQL. With `PUBLISH_ENABLED=true`, the worker
+automatically publishes each successfully completed review after persisting it.
 
 ## Runtime layout
 
@@ -98,9 +98,9 @@ use signed cookies backed by `SESSION_SECRET`; GitHub App JWTs are generated fro
 plaintext `ADMIN_PASSWORD` to the application.
 
 Replace the two GitHub ID placeholders and add the downloaded private key before
-starting the full stack. Keep `PUBLISH_ENABLED=false` until a stored preview is
-explicitly approved. Never give an LLM provider credential to the
-terminal-capable Harness process.
+starting the full stack. Keep `PUBLISH_ENABLED=false` until automatic publishing
+has been approved for the allowlisted repositories. Never give an LLM provider
+credential to the terminal-capable Harness process.
 
 Changing a published port and recreating a container does not remove data.
 Changing `POSTGRES_DB`, `POSTGRES_USER`, or `POSTGRES_PASSWORD` does not rewrite
@@ -152,8 +152,10 @@ managed in GitHub and remains `https://<domain>/webhooks/github`; update it afte
 the final server domain and reverse proxy are ready.
 
 Publication is disabled by `PUBLISH_ENABLED=false` in `.env`. Set it to `true`
-only for an explicitly selected preview after checking the stored head SHA, then
-disable it again.
+only when every successfully completed review for the allowlisted repositories
+should be published automatically. Each publication still checks the current PR
+head SHA, updates the stable marker comment, reads it back, and writes an audit
+record. A publication failure is audited without rerunning the completed review.
 
 ## Static validation
 

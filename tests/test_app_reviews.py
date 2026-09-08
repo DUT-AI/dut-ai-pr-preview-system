@@ -10,7 +10,7 @@ from app.server.repositories import PostgresStore
 from app.server.services import process_one_job
 
 
-def config(tmp_path: Path) -> ServerConfig:
+def config(tmp_path: Path, *, publish_enabled: bool = False) -> ServerConfig:
     return ServerConfig(
         database_url="postgresql://unused", github_app_id="1",
         github_installation_id=42, github_private_key_path=Path("unused.pem"),
@@ -19,7 +19,8 @@ def config(tmp_path: Path) -> ServerConfig:
         admin_username="admin", admin_password_hash="unused",
         session_secret="session-secret", session_secure=False,
         llm_base_url="https://llm2.dutai.site/v1", llm_model="model",
-        llm_api_key="", publish_enabled=False, session_root=tmp_path / "sessions",
+        llm_api_key="", publish_enabled=publish_enabled,
+        session_root=tmp_path / "sessions",
     )
 
 
@@ -33,6 +34,7 @@ class Store:
         self.failed = None
         self.failed_retry = None
         self.interrupted = None
+        self.publish_audit = []
 
     def claim_job(self, lease_id):
         assert lease_id == "worker-1"
@@ -43,6 +45,25 @@ class Store:
 
     def complete_job(self, job, snapshot, output):
         self.completed = (job, snapshot, output)
+        return 11
+
+    def run_detail(self, run_id):
+        assert run_id == 11
+        return {"run": {
+            "repository": self.job.repository,
+            "pr_number": self.job.pr_number,
+            "head_sha": self.job.head_sha,
+            "preview_comment": "preview",
+        }}
+
+    def record_publish(
+        self, run_id, head_sha, status, *, action="publish", comment_id=None,
+        error=None,
+    ):
+        self.publish_audit.append({
+            "run_id": run_id, "head_sha": head_sha, "status": status,
+            "action": action, "comment_id": comment_id, "error": error,
+        })
 
     def fail_job(self, job, error, *, retry=True):
         self.failed = (job, error)
@@ -54,6 +75,9 @@ class Store:
 
 
 class GitHub:
+    def __init__(self):
+        self.published = []
+
     def snapshot(self, repository, pr_number):
         return {
             "owner": "DUT-AI", "repo": "dut-ai-pr-preview-system",
@@ -66,6 +90,10 @@ class GitHub:
         assert ref == "a" * 40
         target.mkdir(parents=True, exist_ok=True)
         (target / "README.md").write_text("workspace", encoding="utf-8")
+
+    def publish_preview(self, repository, pr_number, head_sha, body):
+        self.published.append((repository, pr_number, head_sha, body))
+        return {"action": "created", "comment_id": 12345}
 
 
 class Engine:
@@ -127,9 +155,10 @@ def test_postgres_store_claim_job_builds_review_job(monkeypatch):
 
 def test_process_one_job_connects_snapshot_workspace_engine_and_store(tmp_path):
     store = Store()
+    github = GitHub()
 
     assert process_one_job(
-        config(tmp_path), store, GitHub(), Engine(), lease_id="worker-1"
+        config(tmp_path), store, github, Engine(), lease_id="worker-1"
     )
 
     job, snapshot, output = store.completed
@@ -142,6 +171,48 @@ def test_process_one_job_connects_snapshot_workspace_engine_and_store(tmp_path):
     )
     assert saved.exists()
     assert store.failed is None
+    assert github.published == []
+    assert store.publish_audit == []
+
+
+def test_process_one_job_auto_publishes_completed_review(tmp_path):
+    store = Store()
+    github = GitHub()
+
+    assert process_one_job(
+        config(tmp_path, publish_enabled=True), store, github, Engine(),
+        lease_id="worker-1",
+    )
+
+    assert github.published == [(
+        store.job.repository, store.job.pr_number, store.job.head_sha, "preview",
+    )]
+    assert store.publish_audit == [{
+        "run_id": 11, "head_sha": store.job.head_sha, "status": "success",
+        "action": "created", "comment_id": 12345, "error": None,
+    }]
+    assert store.failed is None
+
+
+def test_process_one_job_keeps_completed_review_when_auto_publish_fails(tmp_path):
+    class FailedPublishGitHub(GitHub):
+        def publish_preview(self, repository, pr_number, head_sha, body):
+            raise RuntimeError("GitHub unavailable")
+
+    store = Store()
+
+    assert process_one_job(
+        config(tmp_path, publish_enabled=True), store, FailedPublishGitHub(), Engine(),
+        lease_id="worker-1",
+    )
+
+    assert store.completed is not None
+    assert store.failed is None
+    assert store.publish_audit == [{
+        "run_id": 11, "head_sha": store.job.head_sha, "status": "failed",
+        "action": "publish", "comment_id": None,
+        "error": "GitHub unavailable",
+    }]
 
 
 def test_process_one_job_persists_failure(tmp_path):
