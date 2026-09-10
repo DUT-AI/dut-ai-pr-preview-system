@@ -4,7 +4,7 @@ import subprocess
 
 
 def _run_gh_impl(args: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(["gh", *args], capture_output=True, text=True)
+    return subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8")
 
 
 def parse_json_stream(text: str):

@@ -28,7 +28,7 @@
   config:
     includeHarnessIdentity: false
     includeRuntimeContext: false
-    persona: !!js process.env.DSH_SYSTEM_PROMPT ?? 'You are a helpful software engineer assistant.'
+    persona: !!js process.env.DSH_SYSTEM_PROMPT ?? 'Bạn là một trợ lý kỹ sư phần mềm hữu ích.'
 
 - id: persistent-bash
   name: '@deepseek-ai/dsh-tool-bash-persistent'
@@ -36,8 +36,8 @@
   config:
     timeoutMs: 300000
     description: |-
-      Run commands in a bash shell within the review workspace.
-      Do not access the network or files outside the workspace.
+      Chạy các lệnh trong bash shell trong workspace review.
+      Không truy cập mạng hoặc file bên ngoài workspace.
 
 - id: str-replace-editor
   name: '@deepseek-ai/dsh-tool-str-replace-editor'

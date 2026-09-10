@@ -127,26 +127,26 @@ def rank_docs(workspace: Path, snapshot: dict, claims: list[dict] | None = None,
         score, why = 0, []
         if rel in named:
             score += W_CLAIM_NAMED
-            why.append("named by a claim")
+            why.append("được nhắc đến trong yêu cầu")
 
         depth = max((_shared_depth(rel, c) for c in changed), default=0)
         if depth:
             score += min(depth * W_PATH_DEPTH, CAP_PATH)
-            why.append(f"sits {depth} level(s) deep with changed files")
+            why.append(f"nằm cùng thư mục độ sâu {depth} với các file thay đổi")
 
         hit_names = sorted(n for n in basenames if n and n in text)
         if hit_names:
             score += min(len(hit_names) * W_BASENAME, CAP_BASENAME)
-            why.append(f"mentions {', '.join(hit_names[:3])}")
+            why.append(f"có nhắc đến file {', '.join(hit_names[:3])}")
 
         hit_symbols = sorted(s for s in symbols if re.search(rf"\b{re.escape(s)}\b", text))
         if hit_symbols:
             score += min(len(hit_symbols) * W_SYMBOL, CAP_SYMBOL)
-            why.append(f"mentions changed symbol {', '.join(hit_symbols[:3])}")
+            why.append(f"có nhắc đến symbol đã thay đổi {', '.join(hit_symbols[:3])}")
 
         if path.stem.lower() in _ROOT_DOCS:
             score += W_ROOT_DOC
-            why.append("top-level project doc")
+            why.append("tài liệu cấp cao nhất")
 
         if score:
             ranked.append({"path": rel, "score": score, "why": "; ".join(why)})

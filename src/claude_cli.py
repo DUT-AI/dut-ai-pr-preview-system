@@ -61,8 +61,8 @@ DEFAULT_MAX_BUDGET_USD = 5.0
 # claims.py sends a self-contained prompt — everything the model needs is in
 # the text. Saying so up front avoids a wasted turn spent reaching for Read in
 # a directory that holds nothing to read.
-NO_TOOLS_HINT = ("Answer directly from the information given above. "
-                 "Do not use tools.")
+NO_TOOLS_HINT = ("Hãy trả lời trực tiếp từ thông tin được cung cấp ở trên. "
+                 "Không sử dụng tools (công cụ).")
 
 # A run that died inside the API rather than on its own terms. Seen for real:
 # four agents launched together all came back at 11s with "Not logged in ·
@@ -83,7 +83,7 @@ def version() -> str:
     """`claude --version` output, or "" if it cannot be run."""
     try:
         proc = subprocess.run([BINARY, "--version"], capture_output=True,
-                              text=True, timeout=30)
+                              text=True, encoding="utf-8", timeout=30)
     except (OSError, subprocess.SubprocessError):
         return ""
     return proc.stdout.strip() if proc.returncode == 0 else ""
@@ -224,7 +224,7 @@ def _attempt(argv: list[str], prompt: str, *, cwd, timeout,
     """
     try:
         proc = _run(argv, input=prompt, cwd=None if cwd is None else str(cwd),
-                    capture_output=True, text=True, timeout=timeout)
+                    capture_output=True, text=True, encoding="utf-8", timeout=timeout)
     except FileNotFoundError as e:
         # The PATH is part of the error because the usual cause is not a
         # missing install: it is a launcher (launchd, cron, systemd) handing

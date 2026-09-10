@@ -10,8 +10,8 @@ MARKER = "<!-- harness-pr-review -->"
 # comment containing MARKER, so a ping carrying it would be overwritten by the
 # next full report. test_ping_marker_is_not_confused_with_main_marker pins this.
 PING_MARKER = "<!-- harness-pr-review-ping -->"
-STATUS_LABELS = {"PASS": "Matches", "FAIL": "Mismatch", "PARTIAL": "Partial",
-                 "UNVERIFIED": "Unverified"}
+STATUS_LABELS = {"PASS": "Trùng khớp", "FAIL": "Không khớp", "PARTIAL": "Một phần",
+                 "UNVERIFIED": "Chưa xác minh"}
 
 
 def _cell(text, max_len=200):
@@ -97,13 +97,13 @@ def verdict_label(verdict: str, findings: dict,
     unproven = (sum(1 for s in statuses if s in ("PARTIAL", "UNVERIFIED"))
                 + max(0, total - len(statuses)))
     return {
-        "ACCURATE": f"All {total} {noun} verified",
-        "PARTIAL": f"{unproven} of {total} {noun} unproven",
-        "CONTRADICTED": f"{fails} of {total} {noun} contradicted",
-        "NO CLAIMS": "No claims",
-        "NO DESCRIPTION": f"No description — {total} {noun} inferred from code",
-        "INCONSISTENT": (f"No description — {fails} of {total} inferred "
-                         f"{noun} contradicted"),
+        "ACCURATE": f"Tất cả {total} {noun} đã được xác minh",
+        "PARTIAL": f"{unproven} trong {total} {noun} chưa được chứng minh",
+        "CONTRADICTED": f"{fails} trong {total} {noun} bị mâu thuẫn",
+        "NO CLAIMS": "Không có yêu cầu",
+        "NO DESCRIPTION": f"Không có mô tả — đã suy luận {total} {noun} từ code",
+        "INCONSISTENT": (f"Không có mô tả — {fails} trong {total} yêu cầu suy luận "
+                         f"bị mâu thuẫn"),
     }.get(verdict, verdict)
 
 
@@ -121,26 +121,26 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
     lines = [
         f"# Review PR #{snapshot['pr']} — {snapshot['title']}",
         "",
-        f"- Author: {snapshot['author']} | Base: {snapshot['base']} → Head: {snapshot['head']}",
-        f"- Files changed: {len(snapshot['files'])} | Commits: {len(snapshot['commits'])}",
-        f"## Verdict: {verdict_label(verdict, findings, claims)}",
+        f"- Tác giả: {snapshot['author']} | Base: {snapshot['base']} → Head: {snapshot['head']}",
+        f"- Số file thay đổi: {len(snapshot['files'])} | Commits: {len(snapshot['commits'])}",
+        f"## Đánh giá: {verdict_label(verdict, findings, claims)}",
         "",
     ]
     if inferred:
         lines += [
-            "> This PR has no usable description. The claims below were "
-            "reconstructed from the code, commits and linked issues, then "
-            "verified against the code for internal consistency.",
+            "> PR này không có mô tả rõ ràng. Các yêu cầu dưới đây được "
+            "tái tạo từ code, commits và các issue liên kết, sau đó "
+            "được xác minh với code về tính nhất quán nội bộ.",
             "",
-            "## Suggested description",
+            "## Mô tả đề xuất",
             "",
             *_suggested_description(claims),
             "",
         ]
     lines += [
-        "## Claims" + (" (inferred from code)" if inferred else ""),
+        "## Yêu cầu" + (" (suy luận từ code)" if inferred else ""),
         "",
-        "| Claim | Content | Status | Evidence | Notes |",
+        "| Yêu cầu | Nội dung | Trạng thái | Bằng chứng | Ghi chú |",
         "|---|---|---|---|---|",
     ]
     for c in findings.get("claims", []):
@@ -149,28 +149,28 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
             f"| {c['id']} | {_cell(text)} | {STATUS_LABELS.get(c['status'], c['status'])} | "
             f"{_cell(', '.join(c.get('evidence', [])) or '-')} | {_cell(c.get('note', ''))} |")
     lines += [
-        "", "## Docs vs reality", "",
-        "| Doc | Status | Difference |", "|---|---|---|",
+        "", "## Tài liệu so với thực tế", "",
+        "| Tài liệu | Trạng thái | Điểm khác biệt |", "|---|---|---|",
     ]
     for d in findings.get("docs", []):
         lines.append(f"| {_cell(d['path'])} | {d['status']} | {_cell(d.get('what', ''))} |")
     lines += [
-        "", "## Requirement impact", "",
-        "| Requirement | Impact | Detail |", "|---|---|---|",
+        "", "## Tác động yêu cầu", "",
+        "| Yêu cầu | Tác động | Chi tiết |", "|---|---|---|",
     ]
     for i in findings.get("impact", []):
         lines.append(f"| {_cell(i['requirement'])} | {i['impact']} | {_cell(i.get('detail', ''))} |")
     lines += [
-        "", "## Review threads", "",
-        "| Comment | Status | Notes |", "|---|---|---|",
+        "", "## Luồng bình luận review", "",
+        "| Bình luận | Trạng thái | Ghi chú |", "|---|---|---|",
     ]
     for t in findings.get("threads", []):
         lines.append(f"| {_cell(t['text'], max_len=120)} | {t['status']} | {_cell(t.get('note', ''))} |")
-    lines += ["", "## Confirmation log", ""]
+    lines += ["", "## Nhật ký xác nhận", ""]
     for a in answers:
         lines.append(f"- **{a['question']}** → {a['answer']}")
     if not answers:
-        lines.append("- (none)")
+        lines.append("- (không có)")
     report = "\n".join(lines) + "\n"
 
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -260,15 +260,15 @@ def _completion_line(snapshot: dict, rounds: int | None,
     text — and no way to tell whether it covered their latest push.
     """
     when = completed_at or time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
-    parts = [f"**Review complete** · {when}"]
+    parts = [f"**Hoàn thành review** · {when}"]
     if rounds:
-        parts.append(f"round {rounds}")
+        parts.append(f"vòng {rounds}")
     sha = (snapshot.get("head_sha") or "")[:7]
     if sha:
         parts.append(f"commit `{sha}`")
-    return (f"✅ {' · '.join(parts)} — this comment is updated in place on each "
-            f"re-review, so check the timestamp instead of waiting for a "
-            f"notification.")
+    return (f"✅ {' · '.join(parts)} — bình luận này được cập nhật trực tiếp tại chỗ trong mỗi "
+            f"lần re-review, vì vậy hãy kiểm tra thời gian thay vì chờ "
+            f"thông báo.")
 
 
 def build_comment(snapshot: dict, claims: list[dict], findings: dict,
@@ -301,31 +301,31 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
             c.get("note", ""),
         ])
     claims_table = _summary_table(
-        ["Claim", "Content", "Category", "Status", "Evidence", "Notes"],
-        claim_rows, color_cols={3}) or "- none"
+        ["Yêu cầu", "Nội dung", "Danh mục", "Trạng thái", "Bằng chứng", "Ghi chú"],
+        claim_rows, color_cols={3}) or "- không có"
 
     docs_table = _summary_table(
-        ["Doc", "Status", "Difference"],
+        ["Tài liệu", "Trạng thái", "Điểm khác biệt"],
         [[d.get("path", ""), d.get("status", ""), d.get("what", "")]
          for d in findings.get("docs", [])],
-        color_cols={1}) or "- none"
+        color_cols={1}) or "- không có"
 
     impact_table = _summary_table(
-        ["Requirement", "Impact", "Detail"],
+        ["Yêu cầu", "Tác động", "Chi tiết"],
         [[i.get("requirement", ""), i.get("impact", ""), i.get("detail", "")]
          for i in findings.get("impact", [])],
-        color_cols={1}) or "- none"
+        color_cols={1}) or "- không có"
 
     thread_table = _summary_table(
-        ["Comment", "Status", "Note"],
+        ["Bình luận", "Trạng thái", "Ghi chú"],
         [[t.get("text", ""), t.get("status", ""), t.get("note", "")]
          for t in findings.get("threads", [])],
-        color_cols={1}) or "- none"
+        color_cols={1}) or "- không có"
 
     confirm_rows = [[a.get("question", ""), a.get("answer", "")]
                     for a in answers]
     confirm_table = _summary_table(
-        ["Question", "Answer"], confirm_rows, color_cols=set()) or "- none"
+        ["Câu hỏi", "Câu trả lời"], confirm_rows, color_cols=set()) or "- không có"
 
     sections = []
     if inferred:
@@ -336,16 +336,16 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
             + "\n".join(_suggested_description(claims)),
             open=True, count=len(claims)))
     sections += [
-        _comment_section("Claims" + (" (inferred from code)" if inferred else ""),
+        _comment_section("Yêu cầu" + (" (suy luận từ code)" if inferred else ""),
                          "🟢", claims_table, open=True,
                          count=len(findings.get("claims", []))),
-        _comment_section("Docs vs reality", "📄", docs_table,
+        _comment_section("Tài liệu so với thực tế", "📄", docs_table,
                          count=len(findings.get("docs", []))),
-        _comment_section("Requirement impact", "🎯", impact_table,
+        _comment_section("Tác động yêu cầu", "🎯", impact_table,
                          count=len(findings.get("impact", []))),
-        _comment_section("Review threads", "💬", thread_table,
+        _comment_section("Luồng bình luận review", "💬", thread_table,
                          count=len(findings.get("threads", []))),
-        _comment_section("Confirm log", "✅", confirm_table,
+        _comment_section("Nhật ký xác nhận", "✅", confirm_table,
                          count=len(answers)),
     ]
 
@@ -353,8 +353,8 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
     bugs, doc_errors = counts["risks"], counts["doc_errors"]
     summary = (
         f"{_badge(v_text, v_color)} "
-        f"{_badge(f'Risks found: {bugs}', '#c0392b' if bugs else '#6b7280')} "
-        f"{_badge(f'Doc errors: {doc_errors}', '#b9770e' if doc_errors else '#6b7280')}"
+        f"{_badge(f'Rủi ro tìm thấy: {bugs}', '#c0392b' if bugs else '#6b7280')} "
+        f"{_badge(f'Lỗi tài liệu: {doc_errors}', '#b9770e' if doc_errors else '#6b7280')}"
     )
     return (
         f"## DUT AI PR Review — Verdict: {summary}\n\n"
@@ -383,17 +383,17 @@ def build_ping(snapshot: dict, findings: dict, rounds: int | None = None,
         f"{n} {STATUS_LABELS[k].lower()}"
         for k, n in st.items() if n)
 
-    head = f"round {rounds}" if rounds else "review"
+    head = f"vòng {rounds}" if rounds else "review"
     sha = (snapshot.get("head_sha") or "")[:7]
     where = f" · commit `{sha}`" if sha else ""
-    line1 = f"🔍 **Harness review — {head} done**{where} · {when}"
+    line1 = f"🔍 **DUT AI PR Review — hoàn thành {head}**{where} · {when}"
     line2 = (f"{verdict} · **{c['risks']}** risk"
              f"{'' if c['risks'] == 1 else 's'} · "
              f"**{c['doc_errors']}** doc error"
              f"{'' if c['doc_errors'] == 1 else 's'} · "
              f"{c['claims']} claim{'' if c['claims'] == 1 else 's'}"
              f"{f' ({breakdown})' if breakdown else ''}")
-    link = (f"\n\n[Full report ↑]({report_url})" if report_url else "")
+    link = (f"\n\n[Báo cáo đầy đủ ↑]({report_url})" if report_url else "")
     return f"{line1}\n\n{line2}{link}\n\n{PING_MARKER}"
 
 
@@ -425,7 +425,7 @@ def _post_body(gh, args_prefix: list[str], body: str) -> None:
 
     fd, path = tempfile.mkstemp(prefix="hpr-comment-", suffix=".md")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(body)
         gh([*args_prefix, "-F", f"body=@{path}"])
     finally:

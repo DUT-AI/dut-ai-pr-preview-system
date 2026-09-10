@@ -49,6 +49,7 @@ class SubprocessReviewEngine:
             "DEEPSEEK_API_KEY": KEYLESS_API_TOKEN,
             "DSH_MODEL": self.model,
             "PYTHONUNBUFFERED": "1",
+            "PYTHONUTF8": "1",
         })
         return allowed
 
@@ -71,7 +72,7 @@ class SubprocessReviewEngine:
             process = subprocess.Popen(
                 command, cwd=Path(__file__).resolve().parents[2],
                 env=self._environment(), stdout=log, stderr=subprocess.STDOUT,
-                stdin=subprocess.DEVNULL, text=True,
+                stdin=subprocess.DEVNULL, text=True, encoding="utf-8",
                 **process_group_options(),
             )
             try:
