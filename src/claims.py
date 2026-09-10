@@ -32,34 +32,36 @@ MAX_PATCH_CHARS = 2000
 MAX_DIFF_TOTAL = 60_000
 
 SCHEMA_HINT = """
-Split the PR description below into verifiable claims (each claim must be
-verifiable by reading the code). Return a JSON array matching this schema:
-[{"id": "C1", "text": "<brief>", "category": "feature|bugfix|refactor|perf|ux|docs",
-  "files": ["<related files, empty if unknown>"], "docs": ["<docs this claim mentions>"]}]
-Do not add any text outside the JSON. If there are no claims, return [].
+Chia nhỏ mô tả PR dưới đây thành các yêu cầu có thể kiểm chứng được (mỗi yêu cầu phải
+kiểm chứng được bằng cách đọc code). Trả về một mảng JSON theo cấu trúc sau:
+[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs",
+  "files": ["<các tệp liên quan, để trống nếu không rõ>"], "docs": ["<tài liệu mà yêu cầu này nhắc đến>"]}]
+Không thêm bất kỳ văn bản nào ngoài JSON. Nếu không có yêu cầu nào, trả về [].
+LƯU Ý QUAN TRỌNG: Mọi giá trị nội dung (text) phải được viết bằng tiếng Việt.
 """
 
 INFERRED_HINT = """
-This PR has no usable description. Reconstruct what the change is supposed to
-do from the evidence below (commit messages, branch name, labels, linked
-issues, and the diff), and state it as verifiable claims — the description the
-author should have written.
+PR này không có mô tả rõ ràng. Hãy tái tạo lại những gì thay đổi này dự định
+thực hiện từ các bằng chứng dưới đây (tin nhắn commit, tên nhánh, nhãn, các
+issue liên kết, và diff), và trình bày dưới dạng các yêu cầu có thể kiểm chứng được —
+đây là mô tả mà tác giả lẽ ra phải viết.
 
-Rules:
-- Each claim must be checkable by reading the code. Describe observable
-  behaviour ("retries failed payments up to 5 times"), not diff mechanics
-  ("edits payment.py").
-- Cover every distinct intent you can see, including changes that look
-  unrelated to the main one — an unrelated change is exactly what a reviewer
-  needs flagged.
-- Do not invent motivation you cannot see in the evidence. If a hunk's purpose
-  is unclear, still emit a claim describing what it does and say it is unclear
-  in the text.
+Quy tắc:
+- Mỗi yêu cầu phải kiểm tra được bằng cách đọc code. Mô tả hành vi quan sát được
+  ("thử lại thanh toán thất bại tối đa 5 lần"), không phải cơ chế diff
+  ("chỉnh sửa payment.py").
+- Bao quát mọi mục đích riêng biệt mà bạn có thể thấy, bao gồm cả các thay đổi có vẻ
+  không liên quan đến thay đổi chính — một thay đổi không liên quan chính xác là điều
+  mà người review cần được cảnh báo.
+- Không bịa ra động cơ mà bạn không thấy trong bằng chứng. Nếu mục đích của một đoạn code
+  không rõ ràng, vẫn đưa ra một yêu cầu mô tả những gì nó làm và nói rằng nó không rõ ràng
+  trong văn bản.
 
-Return a JSON array matching this schema, nothing else:
-[{"id": "C1", "text": "<brief>", "category": "feature|bugfix|refactor|perf|ux|docs",
-  "files": ["<files this claim covers>"], "docs": ["<docs this claim touches>"]}]
-If the diff is empty, return [].
+Trả về một mảng JSON theo cấu trúc sau, không có gì khác:
+[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs",
+  "files": ["<các tệp mà yêu cầu này bao gồm>"], "docs": ["<tài liệu mà yêu cầu này chạm đến>"]}]
+Nếu diff trống, trả về [].
+LƯU Ý QUAN TRỌNG: Mọi giá trị nội dung (text) phải được viết bằng tiếng Việt.
 """
 
 # Stripped before judging whether a description says anything: HTML comments
@@ -101,27 +103,27 @@ def intent_signals(snapshot: dict) -> str:
     honest than a PR body anyway; they are the only intent we have when the
     body is empty.
     """
-    lines = [f"Title: {snapshot.get('title', '')}",
-             f"Branch: {snapshot.get('head', '')} -> {snapshot.get('base', '')}"]
+    lines = [f"Tiêu đề: {snapshot.get('title', '')}",
+             f"Nhánh: {snapshot.get('head', '')} -> {snapshot.get('base', '')}"]
     labels = [l for l in snapshot.get("labels") or [] if l]
     if labels:
-        lines.append(f"Labels: {', '.join(labels)}")
+        lines.append(f"Nhãn: {', '.join(labels)}")
 
     commits = snapshot.get("commits") or []
     if commits:
-        lines.append("Commit messages:")
+        lines.append("Tin nhắn commit:")
         lines += [f"- {(c.get('message') or '').strip().splitlines()[0]}"
                   for c in commits if (c.get("message") or "").strip()]
 
     for issue in snapshot.get("linked_issues") or []:
-        lines.append(f"Linked issue #{issue.get('number')}: {issue.get('title', '')}")
+        lines.append(f"Issue liên kết #{issue.get('number')}: {issue.get('title', '')}")
         body = (issue.get("body") or "").strip()
         if body:
             lines.append(body)
 
     threads = snapshot.get("threads") or []
     if threads:
-        lines.append("Review comments so far:")
+        lines.append("Các bình luận review cho đến nay:")
         lines += [f"- {t.get('author')}: {(t.get('body') or '')[:200]}"
                   for t in threads[:20]]
     return "\n".join(lines)
@@ -140,13 +142,13 @@ def diff_digest(snapshot: dict) -> str:
         patch = (f.get("patch") or "")[:MAX_PATCH_CHARS]
         chunk = f"{header}\n{patch}" if patch else header
         if total + len(chunk) > MAX_DIFF_TOTAL:
-            parts.append(f"(diff truncated: {len(files) - len(parts)} more files)")
+            parts.append(f"(diff đã bị cắt bớt: {len(files) - len(parts)} file khác)")
             break
         parts.append(chunk)
         total += len(chunk)
     if len(files) > MAX_DIFF_FILES:
-        parts.append(f"(… {len(files) - MAX_DIFF_FILES} more files not shown)")
-    return "\n".join(parts) or "(no files changed)"
+        parts.append(f"(… {len(files) - MAX_DIFF_FILES} file khác không được hiển thị)")
+    return "\n".join(parts) or "(không có file nào thay đổi)"
 
 
 def _is_test(filename: str) -> bool:

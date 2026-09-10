@@ -243,7 +243,7 @@ def _update() -> int:
         [sys.executable, "-m", "pip", "install", "-U",
          "dut-ai-pr-preview-system @ "
          "git+https://github.com/DUT-AI/dut-ai-pr-preview-system.git"],
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
         print(f"Update failed:\n{proc.stderr[-2000:]}", file=sys.stderr)
         return 1

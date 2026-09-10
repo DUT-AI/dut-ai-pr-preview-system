@@ -79,6 +79,7 @@ def run_review(owner: str, repo: str, n: int, *, session_root: Path,
     env = dict(os.environ)
     env["DSH_SESSION_ROOT"] = str(session_root)
     env["PYTHONUNBUFFERED"] = "1"  # log is tailed live by the dashboard
+    env["PYTHONUTF8"] = "1"  # ensure subprocess uses UTF-8 on Windows
     if max_agents is not None:
         # The child fans out into several agents; the cap is global across all
         # concurrent reviews, so it has to travel with the process.
@@ -89,7 +90,7 @@ def run_review(owner: str, repo: str, n: int, *, session_root: Path,
                        no_post=no_post, no_ping=no_ping)]
     log_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with open(log_path, "w", buffering=1) as logf:
+        with open(log_path, "w", buffering=1, encoding="utf-8") as logf:
             proc = subprocess.Popen(
                 cmd, stdout=logf, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL,
@@ -107,6 +108,6 @@ def run_review(owner: str, repo: str, n: int, *, session_root: Path,
                 stop_process_tree(proc)
                 raise
     except OSError as e:
-        with open(log_path, "a") as logf:
+        with open(log_path, "a", encoding="utf-8") as logf:
             logf.write(f"\n[harness] could not start review process: {e}\n")
         return EXIT_SPAWN_FAILED
