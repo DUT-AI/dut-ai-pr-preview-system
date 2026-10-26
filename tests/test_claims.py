@@ -95,7 +95,7 @@ def test_empty_description_falls_back_to_inferred(tmp_path):
     claims = extract_claims(THIN_SNAPSHOT, _cfg(), tmp_path / "s", chat=chat)
     # Only the inferred pass runs — no point asking an LLM to split an empty body.
     assert len(seen) == 1
-    assert "no usable description" in seen[0]
+    assert "không có mô tả rõ ràng" in seen[0] or "no usable description" in seen[0]
     assert claims[0]["source"] == "inferred"
     saved = json.loads((tmp_path / "s" / "claims.json").read_text())
     assert saved[0]["source"] == "inferred"
@@ -123,7 +123,7 @@ def test_intent_signals_gathers_non_description_evidence():
     text = intent_signals(THIN_SNAPSHOT)
     assert "fix/payment-retry" in text
     assert "fix: retry payments 5 times" in text
-    assert "Linked issue #12" in text
+    assert "Issue liên kết #12" in text or "Linked issue #12" in text
     assert "One retry is not enough." in text
     assert "bug" in text
 

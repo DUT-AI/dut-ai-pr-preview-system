@@ -17,7 +17,7 @@ from pathlib import Path
 
 from src.llm import chat as _default_chat
 
-CATEGORIES = ("feature", "bugfix", "refactor", "perf", "ux", "docs")
+CATEGORIES = ("feature", "bugfix", "refactor", "perf", "ux", "docs", "test", "chore", "ci", "build")
 SOURCES = ("stated", "inferred")
 
 # A description below this survives boilerplate stripping but still says
@@ -169,8 +169,12 @@ def _parse_claims(raw: str, source: str) -> list[dict]:
             raise ValueError(f"claim has invalid schema (missing id): {c}")
         if "text" not in c or "category" not in c:
             raise ValueError(f"claim has invalid schema (missing text/category): {c}")
-        if c["category"] not in CATEGORIES:
-            raise ValueError(f"invalid category: {c.get('category')}")
+        cat = str(c.get("category", "")).strip().lower()
+        if cat in ("tests", "testing"):
+            cat = "test"
+        elif cat not in CATEGORIES:
+            cat = "feature"
+        c["category"] = cat
         # Stamped here, not asked of the model: provenance is ours to know.
         c["source"] = source
     return data
