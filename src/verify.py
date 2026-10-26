@@ -72,6 +72,15 @@ phù hợp ở đây — vì mô tả CHÍNH LÀ code. Thay vào đó hãy kiể
 - Đánh dấu bất kỳ thay đổi hành vi nào không đi kèm test hoặc cập nhật tài liệu.
 """
 
+
+RULES_BLOCK = """
+Quy tắc Clean Code và Chuẩn mực dự án (CONTRIBUTING / Project Rules):
+1. Không thừa (YAGNI và Scope Control): Báo lỗi hoặc RISK nếu phát hiện code thừa, dead code, hàm hoặc biến không được gọi, print/console debug chưa dọn, file rác, import không sử dụng.
+2. Không thiếu (Completeness): Kiểm tra logic mới có test đi kèm chưa, có xử lý ngoại lệ (try/except) và các nhánh biên không.
+3. Đúng đắn khi chạy (Runtime và UI Correctness): Phân tích xem code khi thực thi có rủi ro gì không (ví dụ: chạy được nhưng không hiển thị được ảnh, lỗi format dữ liệu, thiếu fallback URL, rò rỉ tài nguyên, nuốt lỗi ngoại lệ).
+4. Chuẩn mực Clean Code: Đặt tên rõ ràng tự diễn đạt, hàm đơn nhiệm, không hardcode API key/secret/đường dẫn cá nhân, tuân thủ phân tầng kiến trúc.
+"""
+
 SCOPE_CREEP_BLOCK = """
 PR này không có mô tả, vì vậy không có gì giải thích diff ngoại trừ diff.
 Kiểm tra diff để tìm các thay đổi KHÔNG thuộc bất kỳ yêu cầu nào ở trên. Mỗi
@@ -148,7 +157,7 @@ Yêu cầu:
 3. Đừng đoán. Bất cứ điều gì không thể kiểm tra → UNVERIFIED và thêm nó vào
    unresolved_questions (mỗi câu hỏi ≤20 từ, bằng tiếng Việt).
 4. LƯU Ý QUAN TRỌNG: Mọi giá trị văn bản nhận xét (note, unresolved_questions...) phải được viết hoàn toàn bằng tiếng Việt.
-{SECURITY_BLOCK}{_write_instruction(out_name, CLAIMS_SCHEMA)}"""
+{RULES_BLOCK}{SECURITY_BLOCK}{_write_instruction(out_name, CLAIMS_SCHEMA)}"""
 
 
 def build_docs_prompt(snapshot: dict, candidates: list[dict], out_name: str) -> str:
@@ -198,7 +207,7 @@ Yêu cầu:
 3. Đừng đoán. Bất cứ điều gì không thể kiểm tra → thêm vào unresolved_questions
    (mỗi câu hỏi ≤20 từ, bằng tiếng Việt).
 4. LƯU Ý QUAN TRỌNG: Mọi giá trị văn bản nhận xét (detail, note, unresolved_questions...) phải được viết hoàn toàn bằng tiếng Việt.
-{SECURITY_BLOCK}{_write_instruction(out_name, IMPACT_SCHEMA)}"""
+{RULES_BLOCK}{SECURITY_BLOCK}{_write_instruction(out_name, IMPACT_SCHEMA)}"""
 
 
 def plan_tasks(snapshot: dict, claims: list[dict],

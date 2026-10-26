@@ -1,4 +1,4 @@
-"""Phase 5: synthesize the report + post an English comment on the PR."""
+"""Phase 5: synthesize the report + post a Vietnamese comment on the PR."""
 import time
 from pathlib import Path
 
@@ -10,8 +10,34 @@ MARKER = "<!-- harness-pr-review -->"
 # comment containing MARKER, so a ping carrying it would be overwritten by the
 # next full report. test_ping_marker_is_not_confused_with_main_marker pins this.
 PING_MARKER = "<!-- harness-pr-review-ping -->"
-STATUS_LABELS = {"PASS": "Trùng khớp", "FAIL": "Không khớp", "PARTIAL": "Một phần",
-                 "UNVERIFIED": "Chưa xác minh"}
+
+STATUS_LABELS = {
+    "PASS": "Trùng khớp",
+    "FAIL": "Không khớp",
+    "PARTIAL": "Một phần",
+    "UNVERIFIED": "Chưa xác minh",
+}
+
+DOC_STATUS_LABELS = {
+    "MATCH": "Trùng khớp",
+    "STALE": "Lỗi thời",
+    "WRONG": "Sai lệch",
+    "FABRICATED": "Không có thật",
+}
+
+IMPACT_STATUS_LABELS = {
+    "CHANGED": "Đã thay đổi",
+    "BROKEN": "Bị phá vỡ",
+    "UNAFFECTED": "Không ảnh hưởng",
+    "RISK": "Rủi ro",
+}
+
+THREAD_STATUS_LABELS = {
+    "RESOLVED": "Đã giải quyết",
+    "STILL_VALID": "Còn hiệu lực",
+    "FIXED": "Đã sửa",
+    "OUTDATED": "Lỗi thời",
+}
 
 
 def _cell(text, max_len=200):
@@ -90,7 +116,7 @@ def verdict_label(verdict: str, findings: dict,
     """
     statuses = [c.get("status") for c in findings.get("claims", [])]
     total = max(len(statuses), len(claims or []))
-    noun = "claim" if total == 1 else "claims"
+    noun = "yêu cầu"
     fails = sum(1 for s in statuses if s == "FAIL")
     # Claims whose agent died never came back with a status; they are unproven
     # in the only sense that matters — nobody looked at them.
@@ -100,9 +126,9 @@ def verdict_label(verdict: str, findings: dict,
         "ACCURATE": f"Tất cả {total} {noun} đã được xác minh",
         "PARTIAL": f"{unproven} trong {total} {noun} chưa được chứng minh",
         "CONTRADICTED": f"{fails} trong {total} {noun} bị mâu thuẫn",
-        "NO CLAIMS": "Không có yêu cầu",
+        "NO CLAIMS": "Không có yêu cầu nào",
         "NO DESCRIPTION": f"Không có mô tả — đã suy luận {total} {noun} từ code",
-        "INCONSISTENT": (f"Không có mô tả — {fails} trong {total} yêu cầu suy luận "
+        "INCONSISTENT": (f"Không có mô tả — {fails} trong {total} {noun} suy luận "
                          f"bị mâu thuẫn"),
     }.get(verdict, verdict)
 
@@ -153,19 +179,22 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
         "| Tài liệu | Trạng thái | Điểm khác biệt |", "|---|---|---|",
     ]
     for d in findings.get("docs", []):
-        lines.append(f"| {_cell(d['path'])} | {d['status']} | {_cell(d.get('what', ''))} |")
+        st = DOC_STATUS_LABELS.get(d.get("status", ""), d.get("status", ""))
+        lines.append(f"| {_cell(d['path'])} | {st} | {_cell(d.get('what', ''))} |")
     lines += [
         "", "## Tác động yêu cầu", "",
         "| Yêu cầu | Tác động | Chi tiết |", "|---|---|---|",
     ]
     for i in findings.get("impact", []):
-        lines.append(f"| {_cell(i['requirement'])} | {i['impact']} | {_cell(i.get('detail', ''))} |")
+        st = IMPACT_STATUS_LABELS.get(i.get("impact", ""), i.get("impact", ""))
+        lines.append(f"| {_cell(i['requirement'])} | {st} | {_cell(i.get('detail', ''))} |")
     lines += [
         "", "## Luồng bình luận review", "",
         "| Bình luận | Trạng thái | Ghi chú |", "|---|---|---|",
     ]
     for t in findings.get("threads", []):
-        lines.append(f"| {_cell(t['text'], max_len=120)} | {t['status']} | {_cell(t.get('note', ''))} |")
+        st = THREAD_STATUS_LABELS.get(t.get("status", ""), t.get("status", ""))
+        lines.append(f"| {_cell(t['text'], max_len=120)} | {st} | {_cell(t.get('note', ''))} |")
     lines += ["", "## Nhật ký xác nhận", ""]
     for a in answers:
         lines.append(f"- **{a['question']}** → {a['answer']}")
@@ -197,6 +226,14 @@ STATUS_COLORS = {
     "UNVERIFIED": "#6b7280", "NO_CLAIMS": "#6b7280",
     "INFERRED": "#b9770e", "STATED": "#6b7280",
     "UNAFFECTED": "#6b7280",
+    # Mapped Vietnamese keys
+    "TRÙNG KHỚP": "#27ae60", "KHỚP": "#27ae60", "ĐÃ GIẢI QUYẾT": "#27ae60",
+    "ĐÃ SỬA": "#27ae60", "KHÔNG ẢNH HƯỞNG": "#6b7280",
+    "MỘT PHẦN": "#b9770e", "LỖI THỜI": "#b9770e", "CÒN HIỆU LỰC": "#b9770e",
+    "RỦI RO": "#b9770e", "ĐÃ THAY ĐỔI": "#b9770e",
+    "KHÔNG KHỚP": "#c0392b", "SAI LỆCH": "#c0392b", "BỊ MÂU THUẪN": "#c0392b",
+    "BỊ PHÁ VỠ": "#c0392b", "KHÔNG CÓ THẬT": "#8e1c1c",
+    "CHƯA XÁC MINH": "#6b7280", "KHÔNG CÓ YÊU CẦU": "#6b7280",
 }
 
 
@@ -275,7 +312,7 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
                   answers: list[dict], report_content: str | None = None,
                   rounds: int | None = None,
                   completed_at: str | None = None) -> str:
-    """Build the English comment (single one, with marker).
+    """Build the Vietnamese comment (single one, with marker).
 
     Colored, collapsible sections (GitHub allows inline styles; scripts are
     stripped so tabs are rendered as <details> blocks).
@@ -292,11 +329,13 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
     claim_rows = []
     for c in findings.get("claims", []):
         base = text_by_id.get(c.get("id"), {})
+        st_raw = c.get("status", "")
+        st_label = STATUS_LABELS.get(st_raw, st_raw)
         claim_rows.append([
             c.get("id", ""),
             f"{base.get('text', '')}",
             base.get("category", ""),
-            c.get("status", ""),
+            st_label,
             ", ".join(c.get("evidence", [])) or "—",
             c.get("note", ""),
         ])
@@ -306,19 +345,25 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
 
     docs_table = _summary_table(
         ["Tài liệu", "Trạng thái", "Điểm khác biệt"],
-        [[d.get("path", ""), d.get("status", ""), d.get("what", "")]
+        [[d.get("path", ""),
+          DOC_STATUS_LABELS.get(d.get("status", ""), d.get("status", "")),
+          d.get("what", "")]
          for d in findings.get("docs", [])],
         color_cols={1}) or "- không có"
 
     impact_table = _summary_table(
         ["Yêu cầu", "Tác động", "Chi tiết"],
-        [[i.get("requirement", ""), i.get("impact", ""), i.get("detail", "")]
+        [[i.get("requirement", ""),
+          IMPACT_STATUS_LABELS.get(i.get("impact", ""), i.get("impact", "")),
+          i.get("detail", "")]
          for i in findings.get("impact", [])],
         color_cols={1}) or "- không có"
 
     thread_table = _summary_table(
         ["Bình luận", "Trạng thái", "Ghi chú"],
-        [[t.get("text", ""), t.get("status", ""), t.get("note", "")]
+        [[t.get("text", ""),
+          THREAD_STATUS_LABELS.get(t.get("status", ""), t.get("status", "")),
+          t.get("note", "")]
          for t in findings.get("threads", [])],
         color_cols={1}) or "- không có"
 
@@ -330,23 +375,23 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
     sections = []
     if inferred:
         sections.append(_comment_section(
-            "Suggested description", "📝",
-            "<p>This PR has no description. Reconstructed from the code — "
-            "please confirm or correct:</p>\n\n"
+            "Mô tả đề xuất", "📝",
+            "<p>PR này không có mô tả rõ ràng. Được tái tạo từ code — "
+            "vui lòng xác nhận hoặc chỉnh sửa lại nếu cần:</p>\n\n"
             + "\n".join(_suggested_description(claims)),
             open=True, count=len(claims)))
     sections += [
         _comment_section("Yêu cầu" + (" (suy luận từ code)" if inferred else ""),
-                         "🟢", claims_table, open=True,
-                         count=len(findings.get("claims", []))),
+                          "🟢", claims_table, open=True,
+                          count=len(findings.get("claims", []))),
         _comment_section("Tài liệu so với thực tế", "📄", docs_table,
-                         count=len(findings.get("docs", []))),
+                          count=len(findings.get("docs", []))),
         _comment_section("Tác động yêu cầu", "🎯", impact_table,
-                         count=len(findings.get("impact", []))),
+                          count=len(findings.get("impact", []))),
         _comment_section("Luồng bình luận review", "💬", thread_table,
-                         count=len(findings.get("threads", []))),
+                          count=len(findings.get("threads", []))),
         _comment_section("Nhật ký xác nhận", "✅", confirm_table,
-                         count=len(answers)),
+                          count=len(answers)),
     ]
 
     counts = summary_counts(findings)
@@ -357,7 +402,7 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
         f"{_badge(f'Lỗi tài liệu: {doc_errors}', '#b9770e' if doc_errors else '#6b7280')}"
     )
     return (
-        f"## DUT AI PR Review — Verdict: {summary}\n\n"
+        f"## DUT AI PR Review — Kết quả đánh giá: {summary}\n\n"
         f"{_completion_line(snapshot, rounds, completed_at)}\n\n"
         f"{chr(10).join(sections)}\n\n{MARKER}"
     )
@@ -367,7 +412,7 @@ def build_ping(snapshot: dict, findings: dict, rounds: int | None = None,
                report_url: str | None = None,
                completed_at: str | None = None,
                claims: list[dict] | None = None) -> str:
-    """Short per-round comment carrying the headline numbers.
+    """Short per-round comment carrying the headline numbers in Vietnamese.
 
     Exists purely to raise a notification. The full report lives in one comment
     that is edited in place, and GitHub notifies nobody about an edit, so
@@ -387,11 +432,12 @@ def build_ping(snapshot: dict, findings: dict, rounds: int | None = None,
     sha = (snapshot.get("head_sha") or "")[:7]
     where = f" · commit `{sha}`" if sha else ""
     line1 = f"🔍 **DUT AI PR Review — hoàn thành {head}**{where} · {when}"
-    line2 = (f"{verdict} · **{c['risks']}** risk"
-             f"{'' if c['risks'] == 1 else 's'} · "
-             f"**{c['doc_errors']}** doc error"
-             f"{'' if c['doc_errors'] == 1 else 's'} · "
-             f"{c['claims']} claim{'' if c['claims'] == 1 else 's'}"
+    risk_text = f"**{c['risks']}** rủi ro"
+    doc_text = f"**{c['doc_errors']}** lỗi tài liệu"
+    claim_text = f"{c['claims']} yêu cầu"
+    line2 = (f"{verdict} · {risk_text} · "
+             f"{doc_text} · "
+             f"{claim_text}"
              f"{f' ({breakdown})' if breakdown else ''}")
     link = (f"\n\n[Báo cáo đầy đủ ↑]({report_url})" if report_url else "")
     return f"{line1}\n\n{line2}{link}\n\n{PING_MARKER}"
