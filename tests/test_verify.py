@@ -103,7 +103,7 @@ def test_claims_prompt_contains_parts():
     assert "UNVERIFIED" in prompt
     # Each agent owns one axis and is told to stay out of the others.
     assert "FABRICATED" not in prompt
-    assert "another agent covers docs" in prompt
+    assert "another agent covers docs" in prompt or "agent khác xử lý tài liệu" in prompt
 
 
 def test_docs_prompt_carries_ranked_candidates():
@@ -113,13 +113,13 @@ def test_docs_prompt_carries_ranked_candidates():
         "findings-docs.json")
     assert "docs/a.md — mentions a.py" in prompt
     assert "FABRICATED" in prompt
-    assert "starting point, not a limit" in prompt
+    assert "starting point, not a limit" in prompt or "điểm khởi đầu, không phải giới hạn" in prompt
 
 
 def test_docs_prompt_without_candidates_still_works():
     prompt = build_docs_prompt({"title": "T", "body": "", "files": []}, [],
                                "findings-docs.json")
-    assert "search the repo yourself" in prompt
+    assert "search the repo yourself" in prompt or "tự tìm kiếm trong repo" in prompt
 
 
 def test_impact_prompt_covers_threads():
@@ -137,7 +137,7 @@ def test_inferred_claims_switch_the_claims_prompt():
     assert "no usable description" not in stated
 
     inferred = build_claims_prompt(snapshot, [{"id": "C1", "source": "inferred"}], "o.json")
-    assert "no usable description" in inferred
+    assert "no usable description" in inferred or "không có mô tả rõ ràng" in inferred
 
 
 def test_scope_creep_check_lands_on_the_impact_agent():
@@ -186,7 +186,7 @@ def test_plan_tasks_shards_many_claims():
         assert json.dumps(expected, indent=2) in task["prompt"]
     assert sum(len(all_claims[i * 15:(i + 1) * 15])
                for i in range(len(claim_tasks))) == 37
-    assert "batch 1 of 3" in claim_tasks[0]["prompt"]
+    assert "batch 1 of 3" in claim_tasks[0]["prompt"] or "phần 1 trên 3" in claim_tasks[0]["prompt"]
 
 
 def test_plan_tasks_without_claims_still_reviews_docs_and_impact():
