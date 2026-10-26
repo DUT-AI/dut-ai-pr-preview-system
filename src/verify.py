@@ -182,7 +182,7 @@ Yêu cầu:
 3. Đừng đoán. Nếu tính đúng đắn của một tài liệu không thể được giải quyết từ code, hãy bỏ qua nó
    và thêm một câu hỏi vào unresolved_questions (≤20 từ, bằng tiếng Việt).
 4. LƯU Ý QUAN TRỌNG: Mọi giá trị văn bản nhận xét (what, unresolved_questions...) phải được viết hoàn toàn bằng tiếng Việt.
-{SECURITY_BLOCK}{_write_instruction(out_name, DOCS_SCHEMA)}"""
+{RULES_BLOCK}{SECURITY_BLOCK}{_write_instruction(out_name, DOCS_SCHEMA)}"""
 
 
 def build_impact_prompt(snapshot: dict, claims: list[dict], out_name: str) -> str:
