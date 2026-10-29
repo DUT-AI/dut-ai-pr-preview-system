@@ -66,7 +66,6 @@ def test_build_comment_html_sections():
     assert "Luồng bình luận review" in comment
     assert "Nhật ký xác nhận" in comment
     assert "<details" in comment
-    assert "background-color" in comment
 
 
 def test_post_comment_updates_via_gh(monkeypatch):
@@ -147,7 +146,6 @@ def test_build_comment_summary_badges():
     comment = build_comment(SNAPSHOT, CLAIMS, FINDINGS, ANSWERS)
     assert "Rủi ro tìm thấy:" in comment
     assert "Lỗi tài liệu:" in comment
-    assert "background-color" in comment
 
 
 def _snap(**kw):
@@ -175,13 +173,12 @@ def test_comment_states_the_review_finished():
 
 def test_completion_line_sits_above_the_collapsed_sections():
     """Phải nằm trên các <details> vì chúng mặc định đóng."""
-    body = build_comment(_snap(), [], EMPTY, [], completed_at="x")
+    body = build_comment(_snap(), CLAIMS, FINDINGS, [], completed_at="x")
     assert body.index("Hoàn thành review") < body.index("<details")
 
 
 def _completion_line_of(body: str) -> str:
-    """Chỉ lấy dòng completion — header badge có `background-color` (chứa
-    'round') nên assert trên cả header là bẫy."""
+    """Chỉ lấy dòng completion, không assert trên cả comment."""
     return next(ln for ln in body.splitlines() if ln.startswith("✅"))
 
 
@@ -396,3 +393,108 @@ def test_a_dead_claims_shard_can_never_read_as_accurate():
 
     whole = {"claims": [{"id": f"C{i}", "status": "PASS"} for i in range(1, 24)]}
     assert _overall_verdict(whole, planned) == "ACCURATE"
+
+
+# --- GitHub-safe readability -------------------------------------------------
+
+MIXED = {
+    "claims": [
+        {"id": "C1", "status": "PASS", "evidence": ["a.py:1"], "note": "ok"},
+        {"id": "C2", "status": "FAIL", "evidence": ["b.py:2", "c.py:3"], "note": "sai"},
+        {"id": "C3", "status": "UNVERIFIED", "evidence": [], "note": "?"},
+    ],
+    "docs": [{"path": "docs/a.md", "status": "MATCH", "what": "khớp"}],
+    "impact": [], "threads": [],
+    "unresolved_questions": ["Backend có nhận idToken không?"],
+}
+MIXED_CLAIMS = [
+    {"id": "C1", "text": "x", "category": "feature", "source": "stated"},
+    {"id": "C2", "text": "y", "category": "bugfix", "source": "stated"},
+    {"id": "C3", "text": "z", "category": "chore", "source": "stated"},
+]
+
+
+def test_comment_has_no_inline_style():
+    """GitHub xoá mọi thuộc tính style — màu không được mang nghĩa."""
+    body = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "style=" not in body
+    assert "background-color" not in body
+
+
+def test_status_is_a_glyph_plus_a_vietnamese_word():
+    body = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "🔴 Không khớp" in body
+    assert "🟢 Trùng khớp" in body
+    assert "⚪ Chưa xác minh" in body
+
+
+def test_worst_claims_come_first():
+    body = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert body.index("<td>C2</td>") < body.index("<td>C3</td>") < body.index("<td>C1</td>")
+
+
+def test_category_is_shown_in_vietnamese():
+    body = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "Sửa lỗi" in body and "Bảo trì" in body
+    assert "<td>bugfix</td>" not in body
+
+
+def test_unknown_category_falls_back_to_the_raw_value():
+    claims = [{"id": "C1", "text": "x", "category": "weird", "source": "stated"}]
+    findings = {"claims": [{"id": "C1", "status": "PASS", "evidence": [], "note": ""}],
+                "docs": [], "impact": [], "threads": [], "unresolved_questions": []}
+    assert "<td>weird</td>" in build_comment(SNAPSHOT, claims, findings, [])
+
+
+def test_empty_sections_are_dropped():
+    body = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "Luồng bình luận review" not in body
+    assert "Nhật ký xác nhận" not in body
+    assert "Tác động yêu cầu" not in body
+
+
+def test_all_match_docs_stay_collapsed_but_wrong_docs_open():
+    collapsed = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "<details><summary><b>📄 Tài liệu so với thực tế" in collapsed
+    opened = build_comment(SNAPSHOT, CLAIMS, FINDINGS, [])
+    assert "<details open><summary><b>📄 Tài liệu so với thực tế" in opened
+
+
+def test_unresolved_questions_reach_the_comment_until_answered():
+    pending = build_comment(SNAPSHOT, MIXED_CLAIMS, MIXED, [])
+    assert "Câu hỏi chưa giải quyết" in pending
+    assert "Backend có nhận idToken không?" in pending
+    answered = build_comment(
+        SNAPSHOT, MIXED_CLAIMS, MIXED,
+        [{"question": "Backend có nhận idToken không?", "answer": "y"}])
+    assert "Câu hỏi chưa giải quyết" not in answered
+
+
+def test_evidence_paths_are_code_and_cells_are_escaped():
+    findings = {"claims": [{"id": "C1", "status": "PASS", "evidence": ["a.py:1"],
+                            "note": "<script>alert(1)</script>"}],
+                "docs": [], "impact": [], "threads": [], "unresolved_questions": []}
+    body = build_comment(SNAPSHOT, CLAIMS, findings, [])
+    assert "<code>a.py:1</code>" in body
+    assert "<script>" not in body
+    assert "&lt;script&gt;" in body
+
+
+def test_a_status_outside_the_schema_stays_visible_but_in_vietnamese():
+    """Agents sometimes put a thread status (FIXED) on an impact row."""
+    findings = {"claims": [], "docs": [],
+                "impact": [{"requirement": "Hiển thị comment", "impact": "FIXED", "detail": "d"},
+                           {"requirement": "Không trạng thái", "detail": "d"}],
+                "threads": [], "unresolved_questions": []}
+    body = build_comment(SNAPSHOT, [], findings, [])
+    assert "Không rõ (FIXED)" in body
+    assert "Chưa xác minh" in body
+    assert ">FIXED<" not in body
+
+
+def test_status_label_prefers_the_known_word():
+    from src.synthesize import IMPACT_STATUS_LABELS, status_label
+
+    assert status_label("BROKEN", IMPACT_STATUS_LABELS) == "Bị phá vỡ"
+    assert status_label("", IMPACT_STATUS_LABELS) == "Chưa xác minh"
+    assert status_label(None, IMPACT_STATUS_LABELS) == "Chưa xác minh"

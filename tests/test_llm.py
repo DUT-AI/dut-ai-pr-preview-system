@@ -84,6 +84,8 @@ def test_chat_retries(monkeypatch):
 
 
 def test_chat_gives_up(monkeypatch):
+    # The real backoff sleeps 2+4+6s; the test is about giving up, not waiting.
+    monkeypatch.setattr("src.llm.time.sleep", lambda seconds: None)
     class _AlwaysFail(BaseHTTPRequestHandler):
         def do_POST(self):
             self.send_response(500)
@@ -186,3 +188,52 @@ def test_missing_finish_reason_is_not_treated_as_truncation(monkeypatch):
     monkeypatch.setattr("src.llm.urllib.request.urlopen", lambda req, timeout=0: R())
     assert chat([{"role": "user", "content": "x"}],
                 model="m", api_key="k", base_url="http://x/v1") == "ok"
+
+
+class _FakeResponse:
+    status = 200
+
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@pytest.mark.parametrize("failure", [TimeoutError("read timed out"),
+                                     ConnectionResetError("reset by peer"),
+                                     ConnectionAbortedError("aborted")])
+def test_chat_retries_a_failure_raised_while_reading_the_response(monkeypatch, failure):
+    """urlopen only wraps connect errors in URLError; read-phase ones are bare."""
+    monkeypatch.setattr("src.llm.time.sleep", lambda seconds: None)
+    ok = _FakeResponse(b'{"choices":[{"message":{"content":"xin chao"},"finish_reason":"stop"}]}')
+    outcomes = [failure, ok]
+
+    def fake_urlopen(req, timeout=None):
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr("src.llm.urllib.request.urlopen", fake_urlopen)
+    assert chat([{"role": "user", "content": "hi"}], model="m", api_key="k",
+                base_url="http://x/v1", retries=3) == "xin chao"
+    assert outcomes == []
+
+
+def test_chat_reports_the_last_read_failure_when_retries_run_out(monkeypatch):
+    monkeypatch.setattr("src.llm.time.sleep", lambda seconds: None)
+
+    def always_times_out(req, timeout=None):
+        raise TimeoutError("read timed out")
+
+    monkeypatch.setattr("src.llm.urllib.request.urlopen", always_times_out)
+    with pytest.raises(RuntimeError, match="chat failed after 2 retries: TimeoutError"):
+        chat([{"role": "user", "content": "hi"}], model="m", api_key="k",
+             base_url="http://x/v1", retries=2)

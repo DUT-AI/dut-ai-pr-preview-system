@@ -1,4 +1,5 @@
 """Phase 5: synthesize the report + post a Vietnamese comment on the PR."""
+import html
 import time
 from pathlib import Path
 
@@ -166,7 +167,7 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
     lines += [
         "## Yêu cầu" + (" (suy luận từ code)" if inferred else ""),
         "",
-        "| Yêu cầu | Nội dung | Trạng thái | Bằng chứng | Ghi chú |",
+        "| Mã | Nội dung | Trạng thái | Bằng chứng | Ghi chú |",
         "|---|---|---|---|---|",
     ]
     for c in findings.get("claims", []):
@@ -207,84 +208,90 @@ def build_report(snapshot: dict, claims: list[dict], findings: dict,
     return report
 
 
-VERDICT_COLOR = {
-    "ACCURATE": "#27ae60",
-    "PARTIAL": "#b9770e",
-    "CONTRADICTED": "#c0392b",
-    "NO CLAIMS": "#6b7280",
-    "NO DESCRIPTION": "#b9770e",
-    "INCONSISTENT": "#c0392b",
-}
-STATUS_COLORS = {
-    "MATCHES": "#27ae60", "PASS": "#27ae60", "RESOLVED": "#27ae60",
-    "FIXED": "#27ae60", "MATCH": "#27ae60",
-    "PARTIAL": "#b9770e", "STALE": "#b9770e", "STILL_VALID": "#b9770e",
-    "RISK": "#b9770e", "CHANGED": "#b9770e", "OUTDATED": "#b9770e",
-    "MISMATCH": "#c0392b", "FAIL": "#c0392b", "WRONG": "#c0392b",
-    "CONTRADICTED": "#c0392b",
-    "FABRICATED": "#8e1c1c", "BROKEN": "#c0392b",
-    "UNVERIFIED": "#6b7280", "NO_CLAIMS": "#6b7280",
-    "INFERRED": "#b9770e", "STATED": "#6b7280",
-    "UNAFFECTED": "#6b7280",
-    # Mapped Vietnamese keys
-    "TRÙNG KHỚP": "#27ae60", "KHỚP": "#27ae60", "ĐÃ GIẢI QUYẾT": "#27ae60",
-    "ĐÃ SỬA": "#27ae60", "KHÔNG ẢNH HƯỞNG": "#6b7280",
-    "MỘT PHẦN": "#b9770e", "LỖI THỜI": "#b9770e", "CÒN HIỆU LỰC": "#b9770e",
-    "RỦI RO": "#b9770e", "ĐÃ THAY ĐỔI": "#b9770e",
-    "KHÔNG KHỚP": "#c0392b", "SAI LỆCH": "#c0392b", "BỊ MÂU THUẪN": "#c0392b",
-    "BỊ PHÁ VỠ": "#c0392b", "KHÔNG CÓ THẬT": "#8e1c1c",
-    "CHƯA XÁC MINH": "#6b7280", "KHÔNG CÓ YÊU CẦU": "#6b7280",
+CATEGORY_LABELS = {
+    "feature": "Tính năng", "bugfix": "Sửa lỗi", "refactor": "Tái cấu trúc",
+    "perf": "Hiệu năng", "ux": "Trải nghiệm", "docs": "Tài liệu",
+    "test": "Kiểm thử", "chore": "Bảo trì", "ci": "CI", "build": "Build",
 }
 
+# GitHub strips every `style` attribute from a comment, so colour cannot carry
+# meaning there. A status is a glyph plus its Vietnamese word instead: the glyph
+# makes severity scannable, the word keeps it readable without any colour.
+VERDICT_ICONS = {
+    "ACCURATE": "🟢", "PARTIAL": "🟡", "CONTRADICTED": "🔴",
+    "NO CLAIMS": "⚪", "NO DESCRIPTION": "🟡", "INCONSISTENT": "🔴",
+}
+STATUS_ICONS = {"PASS": "🟢", "FAIL": "🔴", "PARTIAL": "🟡", "UNVERIFIED": "⚪"}
+DOC_STATUS_ICONS = {"MATCH": "🟢", "STALE": "🟡", "WRONG": "🔴", "FABRICATED": "🔴"}
+IMPACT_STATUS_ICONS = {"CHANGED": "🔵", "BROKEN": "🔴", "UNAFFECTED": "⚪", "RISK": "🟡"}
+THREAD_STATUS_ICONS = {"RESOLVED": "🟢", "FIXED": "🟢", "STILL_VALID": "🟡", "OUTDATED": "⚪"}
 
-def _badge(text: str, color: str) -> str:
-    """Badge with a colored dot + tinted background (GitHub allows inline styles)."""
-    return (f'<span style="background-color:{color}1A;color:{color};'
-            f'padding:2px 10px;border-radius:10px;font-size:12px;'
-            f'font-weight:600">● {text}</span>')
+# Lowest rank first: the rows a reviewer must read lead each table.
+STATUS_SEVERITY = {"FAIL": 0, "PARTIAL": 1, "UNVERIFIED": 2, "PASS": 3}
+DOC_SEVERITY = {"WRONG": 0, "FABRICATED": 0, "STALE": 1, "MATCH": 2}
+IMPACT_SEVERITY = {"BROKEN": 0, "RISK": 1, "CHANGED": 2, "UNAFFECTED": 3}
+THREAD_SEVERITY = {"STILL_VALID": 0, "OUTDATED": 1, "RESOLVED": 2, "FIXED": 2}
 
 
-def _html_cell(text, color=None):
-    if color:
-        return (f'<td style="padding:6px 10px;border:1px solid #e3e8ee;'
-                f'font-size:13px;vertical-align:top">'
-                f'<span style="color:{color};font-weight:600">{_html_escape(text)}</span></td>')
-    return (f'<td style="padding:6px 10px;border:1px solid #e3e8ee;'
-            f'font-size:13px;vertical-align:top">{_html_escape(text)}</td>')
+class _Html(str):
+    """A table cell the caller has already escaped."""
 
 
 def _html_escape(text) -> str:
-    """Escape and sanitize for HTML table cells."""
-    import html as _html
-
-    return _html.escape(str(text or ""))
+    return html.escape(str(text if text is not None else ""))
 
 
-def _summary_table(headers: list[str], rows: list[list[str]],
-                   color_cols: set[int]) -> str:
-    """HTML table with colored status cells for the comment."""
-    head = "".join(
-        f'<th style="padding:6px 10px;border:1px solid #e3e8ee;'
-        f'background:#f6f8fa;text-align:left;font-size:12px">{_html_escape(h)}</th>'
-        for h in headers)
-    body = ""
-    for row in rows:
-        cells = []
-        for idx, val in enumerate(row):
-            color = STATUS_COLORS.get(str(val).upper()) if idx in color_cols else None
-            cells.append(_html_cell(val, color))
-        body += f"<tr>{''.join(cells)}</tr>"
-    return (f'<table style="border-collapse:collapse;width:100%">'
-            f'<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>')
+def _code(text) -> _Html:
+    return _Html(f"<code>{_html_escape(text)}</code>")
+
+
+def _evidence_cell(evidence) -> _Html | str:
+    if not evidence:
+        return "—"
+    return _Html("<br>".join(f"<code>{_html_escape(e)}</code>" for e in evidence))
+
+
+def status_label(raw: str, labels: dict) -> str:
+    """Vietnamese word for a status.
+
+    Agents occasionally answer outside the schema (a thread status such as FIXED
+    on an impact row). That must not leak English into a Vietnamese report, and
+    must not be dropped either: the original value stays visible in brackets.
+    """
+    if raw in labels:
+        return labels[raw]
+    return f"Không rõ ({raw})" if raw else "Chưa xác minh"
+
+
+def _status_cell(raw: str, labels: dict, icons: dict) -> str:
+    return f"{icons.get(raw, '⚪')} {status_label(raw, labels)}"
+
+
+def _worst_first(items: list[dict], key: str, order: dict) -> list[dict]:
+    return sorted(items, key=lambda item: order.get(item.get(key), len(order)))
+
+
+def _summary_table(headers: list[str], rows: list[list]) -> str:
+    """Plain HTML table, or "" when empty so the caller can drop the section."""
+    if not rows:
+        return ""
+    head = "".join(f"<th>{_html_escape(h)}</th>" for h in headers)
+    body = "".join(
+        "<tr>" + "".join(
+            f"<td>{cell if isinstance(cell, _Html) else _html_escape(cell)}</td>"
+            for cell in row) + "</tr>"
+        for row in rows)
+    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
 
 
 def _comment_section(title: str, icon: str, table: str, open: bool = False,
                      count: int = 0) -> str:
+    if not table:
+        return ""
     suffix = f" ({count})" if count else ""
     state = " open" if open else ""
-    return (f'<details{state}><summary style="cursor:pointer;'
-            f'font-weight:600;font-size:14px;margin:8px 0">{icon} '
-            f'{_html_escape(title)}{suffix}</summary>\n\n{table}\n\n</details>')
+    return (f"<details{state}><summary><b>{icon} "
+            f"{_html_escape(title)}{suffix}</b></summary>\n\n{table}\n\n</details>")
 
 
 def _completion_line(snapshot: dict, rounds: int | None,
@@ -314,63 +321,62 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
                   completed_at: str | None = None) -> str:
     """Build the Vietnamese comment (single one, with marker).
 
-    Colored, collapsible sections (GitHub allows inline styles; scripts are
-    stripped so tabs are rendered as <details> blocks).
+    Collapsible sections (GitHub strips scripts, so tabs are <details> blocks).
+    Rows are ordered worst-first and sections with nothing to say are dropped,
+    so the reader meets the problems before the confirmations.
 
     completed_at is injectable so tests get a deterministic body.
     """
     verdict = _overall_verdict(findings, claims)
     inferred = all_inferred(claims)
-    v_color = VERDICT_COLOR.get(verdict, "#6b7280")
     v_text = verdict_label(verdict, findings, claims)
+    claim_by_id = {cl.get("id"): cl for cl in claims}
 
-    # Claims table: id, text, category, status, evidence, note
-    text_by_id = {cl.get("id"): cl for cl in claims}
     claim_rows = []
-    for c in findings.get("claims", []):
-        base = text_by_id.get(c.get("id"), {})
-        st_raw = c.get("status", "")
-        st_label = STATUS_LABELS.get(st_raw, st_raw)
+    for c in _worst_first(findings.get("claims", []), "status", STATUS_SEVERITY):
+        base = claim_by_id.get(c.get("id"), {})
+        category = base.get("category", "")
         claim_rows.append([
             c.get("id", ""),
-            f"{base.get('text', '')}",
-            base.get("category", ""),
-            st_label,
-            ", ".join(c.get("evidence", [])) or "—",
+            base.get("text", ""),
+            CATEGORY_LABELS.get(category, category),
+            _status_cell(c.get("status", ""), STATUS_LABELS, STATUS_ICONS),
+            _evidence_cell(c.get("evidence")),
             c.get("note", ""),
         ])
     claims_table = _summary_table(
-        ["Yêu cầu", "Nội dung", "Danh mục", "Trạng thái", "Bằng chứng", "Ghi chú"],
-        claim_rows, color_cols={3}) or "- không có"
+        ["Mã", "Nội dung", "Danh mục", "Trạng thái", "Bằng chứng", "Ghi chú"],
+        claim_rows)
 
+    docs = _worst_first(findings.get("docs", []), "status", DOC_SEVERITY)
     docs_table = _summary_table(
         ["Tài liệu", "Trạng thái", "Điểm khác biệt"],
-        [[d.get("path", ""),
-          DOC_STATUS_LABELS.get(d.get("status", ""), d.get("status", "")),
-          d.get("what", "")]
-         for d in findings.get("docs", [])],
-        color_cols={1}) or "- không có"
+        [[_code(d.get("path", "")),
+          _status_cell(d.get("status", ""), DOC_STATUS_LABELS, DOC_STATUS_ICONS),
+          d.get("what", "")] for d in docs])
 
+    impact = _worst_first(findings.get("impact", []), "impact", IMPACT_SEVERITY)
     impact_table = _summary_table(
         ["Yêu cầu", "Tác động", "Chi tiết"],
         [[i.get("requirement", ""),
-          IMPACT_STATUS_LABELS.get(i.get("impact", ""), i.get("impact", "")),
-          i.get("detail", "")]
-         for i in findings.get("impact", [])],
-        color_cols={1}) or "- không có"
+          _status_cell(i.get("impact", ""), IMPACT_STATUS_LABELS, IMPACT_STATUS_ICONS),
+          i.get("detail", "")] for i in impact])
 
+    threads = _worst_first(findings.get("threads", []), "status", THREAD_SEVERITY)
     thread_table = _summary_table(
         ["Bình luận", "Trạng thái", "Ghi chú"],
         [[t.get("text", ""),
-          THREAD_STATUS_LABELS.get(t.get("status", ""), t.get("status", "")),
-          t.get("note", "")]
-         for t in findings.get("threads", [])],
-        color_cols={1}) or "- không có"
+          _status_cell(t.get("status", ""), THREAD_STATUS_LABELS, THREAD_STATUS_ICONS),
+          t.get("note", "")] for t in threads])
 
-    confirm_rows = [[a.get("question", ""), a.get("answer", "")]
-                    for a in answers]
+    answered = {a.get("question") for a in answers}
+    pending = [q for q in findings.get("unresolved_questions", [])
+               if isinstance(q, str) and q not in answered]
+    questions_table = _summary_table(["Câu hỏi"], [[q] for q in pending])
+
     confirm_table = _summary_table(
-        ["Câu hỏi", "Câu trả lời"], confirm_rows, color_cols=set()) or "- không có"
+        ["Câu hỏi", "Câu trả lời"],
+        [[a.get("question", ""), a.get("answer", "")] for a in answers])
 
     sections = []
     if inferred:
@@ -382,29 +388,32 @@ def build_comment(snapshot: dict, claims: list[dict], findings: dict,
             open=True, count=len(claims)))
     sections += [
         _comment_section("Yêu cầu" + (" (suy luận từ code)" if inferred else ""),
-                          "🟢", claims_table, open=True,
-                          count=len(findings.get("claims", []))),
+                         "📋", claims_table, open=True, count=len(claim_rows)),
+        _comment_section("Câu hỏi chưa giải quyết", "❓", questions_table,
+                         open=True, count=len(pending)),
         _comment_section("Tài liệu so với thực tế", "📄", docs_table,
-                          count=len(findings.get("docs", []))),
+                         open=any(d.get("status") != "MATCH" for d in docs),
+                         count=len(docs)),
         _comment_section("Tác động yêu cầu", "🎯", impact_table,
-                          count=len(findings.get("impact", []))),
+                         open=any(i.get("impact") in ("BROKEN", "RISK") for i in impact),
+                         count=len(impact)),
         _comment_section("Luồng bình luận review", "💬", thread_table,
-                          count=len(findings.get("threads", []))),
-        _comment_section("Nhật ký xác nhận", "✅", confirm_table,
-                          count=len(answers)),
+                         open=any(t.get("status") == "STILL_VALID" for t in threads),
+                         count=len(threads)),
+        _comment_section("Nhật ký xác nhận", "📝", confirm_table,
+                         count=len(answers)),
     ]
 
     counts = summary_counts(findings)
-    bugs, doc_errors = counts["risks"], counts["doc_errors"]
-    summary = (
-        f"{_badge(v_text, v_color)} "
-        f"{_badge(f'Rủi ro tìm thấy: {bugs}', '#c0392b' if bugs else '#6b7280')} "
-        f"{_badge(f'Lỗi tài liệu: {doc_errors}', '#b9770e' if doc_errors else '#6b7280')}"
-    )
+    risks, doc_errors = counts["risks"], counts["doc_errors"]
+    summary = (f"{'🔴' if risks else '🟢'} **Rủi ro tìm thấy: {risks}** · "
+               f"{'🟡' if doc_errors else '🟢'} **Lỗi tài liệu: {doc_errors}**")
     return (
-        f"## DUT AI PR Review — Kết quả đánh giá: {summary}\n\n"
+        f"## DUT AI PR Review — Kết quả đánh giá: "
+        f"{VERDICT_ICONS.get(verdict, '⚪')} **{v_text}**\n\n"
+        f"{summary}\n\n"
         f"{_completion_line(snapshot, rounds, completed_at)}\n\n"
-        f"{chr(10).join(sections)}\n\n{MARKER}"
+        f"{chr(10).join(s for s in sections if s)}\n\n{MARKER}"
     )
 
 

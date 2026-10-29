@@ -18,7 +18,7 @@
       <div class="review-title">
         <p class="label">PULL REQUEST #{{ pull_request.number }}</p>
         <h1>{{ pull_request.title or 'Pull request không tiêu đề' }}</h1>
-        <p class="muted">{{ pull_request.author or 'unknown' }} · <code>{{ pull_request.head_ref }}</code> → <code>{{ pull_request.base_ref }}</code> · head <code>{{ pull_request.head_sha[:12] }}</code></p>
+        <p class="muted">{{ pull_request.author or 'không rõ' }} · <code>{{ pull_request.head_ref }}</code> → <code>{{ pull_request.base_ref }}</code> · head <code>{{ pull_request.head_sha[:12] }}</code></p>
       </div>
       <div class="review-actions">
         <span class="state large {{ pull_request.state|lower }}">{{ pull_request.state }}</span>
@@ -27,7 +27,7 @@
     </section>
 
     <section class="review-summary">
-      <article><small>REVIEW RUNS</small><strong>{{ review_runs|length }}</strong><span>Mọi kết quả đã được lưu</span></article>
+      <article><small>LƯỢT REVIEW</small><strong>{{ review_runs|length }}</strong><span>Mọi kết quả đã được lưu</span></article>
       <article><small>TIẾN TRÌNH PIPELINE</small><strong>{{ jobs|length }}</strong><span>Lịch sử webhook/job</span></article>
       <article><small>COMMITS</small><strong>{{ commits|length }}</strong><span>Commit snapshot mới nhất</span></article>
       <article><small>FILE THAY ĐỔI</small><strong>{{ pull_request.changed_files or 0 }}</strong><span><b class="add">+{{ pull_request.additions or 0 }}</b> / <b class="del">-{{ pull_request.deletions or 0 }}</b></span></article>
@@ -42,8 +42,8 @@
             <a class="run-history-row" href="/runs/{{ item.id }}">
               <span class="run-index">RUN #{{ item.id }}</span>
               <span class="run-head"><b><code>{{ item.head_sha[:12] }}</code></b><small>{{ item.created_at }}</small></span>
-              <span class="history-metric"><b>{{ item.counts.claims }}</b><small>claims</small></span>
-              <span class="history-metric {{ 'risk' if item.counts.risks else '' }}"><b>{{ item.counts.risks }}</b><small>risks</small></span>
+              <span class="history-metric"><b>{{ item.counts.claims }}</b><small>yêu cầu</small></span>
+              <span class="history-metric {{ 'risk' if item.counts.risks else '' }}"><b>{{ item.counts.risks }}</b><small>rủi ro</small></span>
               <span class="state {{ item.status|lower }}">{{ item.status }}</span>
               {% if item.github_comment_url %}<span class="preview-badge published">ĐÃ PUBLISH</span>{% else %}<span class="preview-badge">XEM TRƯỚC</span>{% endif %}
               <span class="icon-link">→</span>
@@ -56,7 +56,7 @@
       <aside class="review-side">
         <article class="panel">
           <div class="panel-head"><div><p class="label">TIẾN TRÌNH PIPELINE</p><h2>Lần xử lý đã nhận</h2></div><span class="count-pill">{{ jobs|length }}</span></div>
-          <div class="history-stack">{% for job in jobs %}<div><span class="state {{ job.status|lower }}">{{ job.status }}</span><p><b>Job #{{ job.id }}</b> · <code>{{ job.head_sha[:10] }}</code></p><small>Attempt {{ job.attempt }} · {{ job.created_at }}</small>{% if job.error %}<em>{{ job.error }}</em>{% endif %}</div>{% else %}<div class="empty compact"><b>Chưa có tiến trình</b></div>{% endfor %}</div>
+          <div class="history-stack">{% for job in jobs %}<div><span class="state {{ job.status|lower }}">{{ job.status }}</span><p><b>Job #{{ job.id }}</b> · <code>{{ job.head_sha[:10] }}</code></p><small>Lần thử {{ job.attempt }} · {{ job.created_at }}</small>{% if job.error %}<em>{{ job.error }}</em>{% endif %}</div>{% else %}<div class="empty compact"><b>Chưa có tiến trình</b></div>{% endfor %}</div>
         </article>
 
         <article class="panel">

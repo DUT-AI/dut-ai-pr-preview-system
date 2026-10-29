@@ -34,10 +34,11 @@ MAX_DIFF_TOTAL = 60_000
 SCHEMA_HINT = """
 Chia nhỏ mô tả PR dưới đây thành các yêu cầu có thể kiểm chứng được (mỗi yêu cầu phải
 kiểm chứng được bằng cách đọc code). Trả về một mảng JSON theo cấu trúc sau:
-[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs",
+[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs|test|chore|ci|build",
   "files": ["<các tệp liên quan, để trống nếu không rõ>"], "docs": ["<tài liệu mà yêu cầu này nhắc đến>"]}]
 Không thêm bất kỳ văn bản nào ngoài JSON. Nếu không có yêu cầu nào, trả về [].
 LƯU Ý QUAN TRỌNG: Mọi giá trị nội dung (text) phải được viết bằng tiếng Việt.
+Riêng category phải giữ đúng một trong các mã tiếng Anh ở trên, không dịch.
 """
 
 INFERRED_HINT = """
@@ -58,10 +59,11 @@ Quy tắc:
   trong văn bản.
 
 Trả về một mảng JSON theo cấu trúc sau, không có gì khác:
-[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs",
+[{"id": "C1", "text": "<mô tả ngắn gọn bằng tiếng Việt>", "category": "feature|bugfix|refactor|perf|ux|docs|test|chore|ci|build",
   "files": ["<các tệp mà yêu cầu này bao gồm>"], "docs": ["<tài liệu mà yêu cầu này chạm đến>"]}]
 Nếu diff trống, trả về [].
 LƯU Ý QUAN TRỌNG: Mọi giá trị nội dung (text) phải được viết bằng tiếng Việt.
+Riêng category phải giữ đúng một trong các mã tiếng Anh ở trên, không dịch.
 """
 
 # Stripped before judging whether a description says anything: HTML comments

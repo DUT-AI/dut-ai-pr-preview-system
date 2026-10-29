@@ -25,8 +25,8 @@
     </section>
 
     <section class="review-summary">
-      <article><small>CLAIMS</small><strong>{{ review.counts.claims }}</strong><span>{{ review.counts.by_status.PASS }} đã qua</span></article>
-      <article class="{{ 'has-risk' if review.counts.risks else '' }}"><small>RISKS</small><strong>{{ review.counts.risks }}</strong><span>Không khớp, một phần & tác động</span></article>
+      <article><small>YÊU CẦU</small><strong>{{ review.counts.claims }}</strong><span>{{ review.counts.by_status.PASS }} đã qua</span></article>
+      <article class="{{ 'has-risk' if review.counts.risks else '' }}"><small>RỦI RO</small><strong>{{ review.counts.risks }}</strong><span>Không khớp, một phần & tác động</span></article>
       <article class="{{ 'has-warning' if review.counts.doc_errors else '' }}"><small>LỖI TÀI LIỆU</small><strong>{{ review.counts.doc_errors }}</strong><span>Sai, cũ, bịa đặt</span></article>
       <article><small>FILE THAY ĐỔI</small><strong>{{ pr.changed_files if pr else 0 }}</strong><span><b class="add">+{{ pr.additions if pr else 0 }}</b> / <b class="del">-{{ pr.deletions if pr else 0 }}</b></span></article>
     </section>
@@ -40,34 +40,34 @@
           </div>
 
           <details class="review-section" open>
-            <summary><span><i class="section-dot green"></i>Claims</span><b>{{ review.findings.claims|length }}</b></summary>
+            <summary><span><i class="section-dot green"></i>Yêu cầu</span><b>{{ review.findings.claims|length }}</b></summary>
             <div class="table-scroll">
-              <table><thead><tr><th>Claim</th><th>Status</th><th>Evidence</th><th>Notes</th></tr></thead>
-              <tbody>{% for claim in review.findings.claims %}<tr><td><code>{{ claim.id or '—' }}</code></td><td><span class="finding-status {{ (claim.status or 'unverified')|lower }}">{{ claim.status or 'UNVERIFIED' }}</span></td><td>{{ claim.evidence|join(', ') if claim.evidence else '—' }}</td><td>{{ claim.note or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="table-empty">Chưa có claim finding.</td></tr>{% endfor %}</tbody></table>
+              <table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Bằng chứng</th><th>Ghi chú</th></tr></thead>
+              <tbody>{% for claim in review.findings.claims %}<tr><td><code>{{ claim.id or '—' }}</code></td><td><span class="finding-status {{ (claim.status or 'unverified')|lower }}">{{ review.labels.claim[claim.status] if claim.status else 'Chưa xác minh' }}</span></td><td>{{ claim.evidence|join(', ') if claim.evidence else '—' }}</td><td>{{ claim.note or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="table-empty">Chưa có kết quả kiểm tra yêu cầu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
           <details class="review-section" open>
-            <summary><span><i class="section-dot blue"></i>Docs vs reality</span><b>{{ review.findings.docs|length }}</b></summary>
+            <summary><span><i class="section-dot blue"></i>Tài liệu so với thực tế</span><b>{{ review.findings.docs|length }}</b></summary>
             <div class="table-scroll">
-              <table><thead><tr><th>Document</th><th>Status</th><th>Difference</th></tr></thead>
-              <tbody>{% for doc in review.findings.docs %}<tr><td><code>{{ doc.path or '—' }}</code></td><td><span class="finding-status {{ (doc.status or 'unverified')|lower }}">{{ doc.status or 'UNVERIFIED' }}</span></td><td>{{ doc.what or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có finding tài liệu.</td></tr>{% endfor %}</tbody></table>
+              <table><thead><tr><th>Tài liệu</th><th>Trạng thái</th><th>Điểm khác biệt</th></tr></thead>
+              <tbody>{% for doc in review.findings.docs %}<tr><td><code>{{ doc.path or '—' }}</code></td><td><span class="finding-status {{ (doc.status or 'unverified')|lower }}">{{ review.labels.doc[doc.status] if doc.status else 'Chưa xác minh' }}</span></td><td>{{ doc.what or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có finding tài liệu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
           <details class="review-section" open>
-            <summary><span><i class="section-dot amber"></i>Requirement impact</span><b>{{ review.findings.impact|length }}</b></summary>
+            <summary><span><i class="section-dot amber"></i>Tác động yêu cầu</span><b>{{ review.findings.impact|length }}</b></summary>
             <div class="table-scroll">
-              <table><thead><tr><th>Requirement</th><th>Impact</th><th>Detail</th></tr></thead>
-              <tbody>{% for item in review.findings.impact %}<tr><td>{{ item.requirement or '—' }}</td><td><span class="finding-status {{ (item.impact or 'unverified')|lower }}">{{ item.impact or 'UNVERIFIED' }}</span></td><td>{{ item.detail or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có requirement impact.</td></tr>{% endfor %}</tbody></table>
+              <table><thead><tr><th>Yêu cầu</th><th>Tác động</th><th>Chi tiết</th></tr></thead>
+              <tbody>{% for item in review.findings.impact %}<tr><td>{{ item.requirement or '—' }}</td><td><span class="finding-status {{ (item.impact or 'unverified')|lower }}">{{ review.labels.impact[item.impact] if item.impact else 'Chưa xác minh' }}</span></td><td>{{ item.detail or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có tác động yêu cầu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
           <details class="review-section">
-            <summary><span><i class="section-dot violet"></i>Review threads</span><b>{{ review.findings.threads|length }}</b></summary>
+            <summary><span><i class="section-dot violet"></i>Luồng bình luận review</span><b>{{ review.findings.threads|length }}</b></summary>
             <div class="table-scroll">
-              <table><thead><tr><th>Comment</th><th>Status</th><th>Note</th></tr></thead>
-              <tbody>{% for thread in review.findings.threads %}<tr><td>{{ thread.text or '—' }}</td><td><span class="finding-status {{ (thread.status or 'unverified')|lower }}">{{ thread.status or 'UNVERIFIED' }}</span></td><td>{{ thread.note or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có review thread.</td></tr>{% endfor %}</tbody></table>
+              <table><thead><tr><th>Bình luận</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
+              <tbody>{% for thread in review.findings.threads %}<tr><td>{{ thread.text or '—' }}</td><td><span class="finding-status {{ (thread.status or 'unverified')|lower }}">{{ review.labels.thread[thread.status] if thread.status else 'Chưa xác minh' }}</span></td><td>{{ thread.note or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có luồng bình luận.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
@@ -112,12 +112,12 @@
 
         <article class="panel">
           <div class="panel-head"><div><p class="label">COMMITS</p><h2>Commit snapshot</h2></div><span class="count-pill">{{ commits|length }}</span></div>
-          <div class="commit-list">{% for commit in commits %}<div><code>{{ commit.sha[:8] }}</code><span>{{ commit.message or 'No commit message' }}</span></div>{% else %}<div class="empty compact"><b>Chưa có commit</b></div>{% endfor %}</div>
+          <div class="commit-list">{% for commit in commits %}<div><code>{{ commit.sha[:8] }}</code><span>{{ commit.message or 'Không có nội dung commit' }}</span></div>{% else %}<div class="empty compact"><b>Chưa có commit</b></div>{% endfor %}</div>
         </article>
 
         <article class="panel">
           <div class="panel-head"><div><p class="label">AUDIT PUBLISH</p><h2>Lịch sử GitHub</h2></div></div>
-          <div class="audit-list">{% for item in publish_audit %}<div><span class="finding-status {{ item.status|lower }}">{{ item.status }}</span><p><b>{{ item.action }}</b> · <code>{{ item.head_sha[:8] }}</code></p><small>{% if item.comment_id %}comment #{{ item.comment_id }}{% else %}{{ item.error or 'No comment created' }}{% endif %}</small></div>{% else %}<div class="empty compact"><b>Chưa publish</b><span>Không có tác động GitHub cho run này.</span></div>{% endfor %}</div>
+          <div class="audit-list">{% for item in publish_audit %}<div><span class="finding-status {{ item.status|lower }}">{{ item.status }}</span><p><b>{{ item.action }}</b> · <code>{{ item.head_sha[:8] }}</code></p><small>{% if item.comment_id %}comment #{{ item.comment_id }}{% else %}{{ item.error or 'Chưa tạo comment' }}{% endif %}</small></div>{% else %}<div class="empty compact"><b>Chưa publish</b><span>Không có tác động GitHub cho run này.</span></div>{% endfor %}</div>
         </article>
       </aside>
     </section>
