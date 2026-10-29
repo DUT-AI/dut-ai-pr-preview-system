@@ -386,10 +386,10 @@ def test_main_posts_report_and_round_ping(tmp_path, monkeypatch, capsys):
     assert main(["demo/app", "7", "--skip-human"]) == 0
     assert "report" in calls and "ping" in calls
     ping = calls["ping"]
-    assert "Harness review" in ping
+    assert "DUT AI PR Review" in ping
     assert "`abcdef1`" in ping                 # commit đã review
-    assert "**1** risk" in ping                # 1 claim PARTIAL
-    assert "**1** doc error" in ping           # 1 STALE
+    assert "**1** rủi ro" in ping                # 1 claim PARTIAL
+    assert "**1** lỗi tài liệu" in ping           # 1 STALE
     assert "https://gh/c/1" in ping            # link tới báo cáo đầy đủ
     assert len(ping) < 400                     # "ngắn" là một yêu cầu
     assert "Posted round ping." in capsys.readouterr().out
@@ -430,8 +430,8 @@ def test_ping_still_posts_when_report_comment_url_is_unavailable(tmp_path,
     monkeypatch.setattr("src.run.post_ping",
                         lambda o, r, n, body: calls.setdefault("ping", body))
     assert main(["demo/app", "7", "--skip-human"]) == 0
-    assert "Harness review" in calls["ping"]
-    assert "Full report" not in calls["ping"]
+    assert "DUT AI PR Review" in calls["ping"]
+    assert "Báo cáo đầy đủ" not in calls["ping"]
 
 
 def test_review_prints_phase_progress(tmp_path, monkeypatch, capsys):

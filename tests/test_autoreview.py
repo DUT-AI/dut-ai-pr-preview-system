@@ -2,6 +2,8 @@
 import json
 import os
 
+import pytest
+
 from src.autoreview import (_acquire_lock, _release_lock, decide_pr, main,
                                    plan_reviews, run_pass)
 from src.autoreview_config import load_config
@@ -398,6 +400,8 @@ def test_run_pass_parallel_counts_only_successes(tmp_path, monkeypatch):
     assert run_pass(cfg, root, dry_run=False, gh=fake_gh) == 1
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"),
+                    reason="needs a real dead PID; os.fork does not exist on Windows")
 def test_run_pass_reclaims_stale_review_lock(tmp_path, monkeypatch, capsys):
     """Review trước bị kill (timeout/crash) → lock chết KHÔNG được skip.
 

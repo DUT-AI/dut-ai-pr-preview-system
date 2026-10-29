@@ -60,3 +60,16 @@ def test_phase_cfg_resolves_the_model_for_the_active_provider(monkeypatch):
     claude = load_config().phase_cfg()
     assert claude["model"] == "opus"
     assert claude["provider"] == "claude"
+
+
+def test_import_survives_an_undeterminable_home_directory(monkeypatch):
+    """Containers/service accounts can have no HOME; config must not crash on import."""
+    from pathlib import Path
+
+    from src import config
+
+    def no_home(cls):
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(Path, "home", classmethod(no_home))
+    config._load_dotenv()  # must return quietly, not raise
