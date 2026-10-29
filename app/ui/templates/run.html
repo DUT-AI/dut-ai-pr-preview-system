@@ -43,7 +43,7 @@
             <summary><span><i class="section-dot green"></i>Yêu cầu</span><b>{{ review.findings.claims|length }}</b></summary>
             <div class="table-scroll">
               <table><thead><tr><th>Mã</th><th>Trạng thái</th><th>Bằng chứng</th><th>Ghi chú</th></tr></thead>
-              <tbody>{% for claim in review.findings.claims %}<tr><td><code>{{ claim.id or '—' }}</code></td><td><span class="finding-status {{ (claim.status or 'unverified')|lower }}">{{ review.labels.claim.get(claim.status, claim.status) if claim.status else 'Chưa xác minh' }}</span></td><td>{{ claim.evidence|join(', ') if claim.evidence else '—' }}</td><td>{{ claim.note or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="table-empty">Chưa có kết quả kiểm tra yêu cầu.</td></tr>{% endfor %}</tbody></table>
+              <tbody>{% for claim in review.findings.claims %}<tr><td><code>{{ claim.id or '—' }}</code></td><td><span class="finding-status {{ (claim.status or 'unverified')|lower }}">{{ review.labels.claim[claim.status] if claim.status else 'Chưa xác minh' }}</span></td><td>{{ claim.evidence|join(', ') if claim.evidence else '—' }}</td><td>{{ claim.note or '—' }}</td></tr>{% else %}<tr><td colspan="4" class="table-empty">Chưa có kết quả kiểm tra yêu cầu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
@@ -51,7 +51,7 @@
             <summary><span><i class="section-dot blue"></i>Tài liệu so với thực tế</span><b>{{ review.findings.docs|length }}</b></summary>
             <div class="table-scroll">
               <table><thead><tr><th>Tài liệu</th><th>Trạng thái</th><th>Điểm khác biệt</th></tr></thead>
-              <tbody>{% for doc in review.findings.docs %}<tr><td><code>{{ doc.path or '—' }}</code></td><td><span class="finding-status {{ (doc.status or 'unverified')|lower }}">{{ review.labels.doc.get(doc.status, doc.status) if doc.status else 'Chưa xác minh' }}</span></td><td>{{ doc.what or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có finding tài liệu.</td></tr>{% endfor %}</tbody></table>
+              <tbody>{% for doc in review.findings.docs %}<tr><td><code>{{ doc.path or '—' }}</code></td><td><span class="finding-status {{ (doc.status or 'unverified')|lower }}">{{ review.labels.doc[doc.status] if doc.status else 'Chưa xác minh' }}</span></td><td>{{ doc.what or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có finding tài liệu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
@@ -59,7 +59,7 @@
             <summary><span><i class="section-dot amber"></i>Tác động yêu cầu</span><b>{{ review.findings.impact|length }}</b></summary>
             <div class="table-scroll">
               <table><thead><tr><th>Yêu cầu</th><th>Tác động</th><th>Chi tiết</th></tr></thead>
-              <tbody>{% for item in review.findings.impact %}<tr><td>{{ item.requirement or '—' }}</td><td><span class="finding-status {{ (item.impact or 'unverified')|lower }}">{{ review.labels.impact.get(item.impact, item.impact) if item.impact else 'Chưa xác minh' }}</span></td><td>{{ item.detail or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có tác động yêu cầu.</td></tr>{% endfor %}</tbody></table>
+              <tbody>{% for item in review.findings.impact %}<tr><td>{{ item.requirement or '—' }}</td><td><span class="finding-status {{ (item.impact or 'unverified')|lower }}">{{ review.labels.impact[item.impact] if item.impact else 'Chưa xác minh' }}</span></td><td>{{ item.detail or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có tác động yêu cầu.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 
@@ -67,7 +67,7 @@
             <summary><span><i class="section-dot violet"></i>Luồng bình luận review</span><b>{{ review.findings.threads|length }}</b></summary>
             <div class="table-scroll">
               <table><thead><tr><th>Bình luận</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
-              <tbody>{% for thread in review.findings.threads %}<tr><td>{{ thread.text or '—' }}</td><td><span class="finding-status {{ (thread.status or 'unverified')|lower }}">{{ review.labels.thread.get(thread.status, thread.status) if thread.status else 'Chưa xác minh' }}</span></td><td>{{ thread.note or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có luồng bình luận.</td></tr>{% endfor %}</tbody></table>
+              <tbody>{% for thread in review.findings.threads %}<tr><td>{{ thread.text or '—' }}</td><td><span class="finding-status {{ (thread.status or 'unverified')|lower }}">{{ review.labels.thread[thread.status] if thread.status else 'Chưa xác minh' }}</span></td><td>{{ thread.note or '—' }}</td></tr>{% else %}<tr><td colspan="3" class="table-empty">Không có luồng bình luận.</td></tr>{% endfor %}</tbody></table>
             </div>
           </details>
 

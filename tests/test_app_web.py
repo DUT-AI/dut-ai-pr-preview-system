@@ -267,3 +267,11 @@ def test_dashboard_summary_handles_missing_optional_counts():
     assert dashboard_summary([{"pull_request_count": 2}, {"run_count": 3}]) == {
         "repositories": 2, "pull_requests": 2, "runs": 3, "active_jobs": 0,
     }
+
+
+def test_dashboard_labels_degrade_for_unexpected_statuses():
+    from app.server.presentation import FINDING_LABELS
+
+    assert FINDING_LABELS["impact"]["BROKEN"] == "Bị phá vỡ"
+    assert FINDING_LABELS["impact"]["FIXED"] == "Không rõ (FIXED)"
+    assert FINDING_LABELS["claim"][None] == "Chưa xác minh"

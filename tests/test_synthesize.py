@@ -478,3 +478,23 @@ def test_evidence_paths_are_code_and_cells_are_escaped():
     assert "<code>a.py:1</code>" in body
     assert "<script>" not in body
     assert "&lt;script&gt;" in body
+
+
+def test_a_status_outside_the_schema_stays_visible_but_in_vietnamese():
+    """Agents sometimes put a thread status (FIXED) on an impact row."""
+    findings = {"claims": [], "docs": [],
+                "impact": [{"requirement": "Hiển thị comment", "impact": "FIXED", "detail": "d"},
+                           {"requirement": "Không trạng thái", "detail": "d"}],
+                "threads": [], "unresolved_questions": []}
+    body = build_comment(SNAPSHOT, [], findings, [])
+    assert "Không rõ (FIXED)" in body
+    assert "Chưa xác minh" in body
+    assert ">FIXED<" not in body
+
+
+def test_status_label_prefers_the_known_word():
+    from src.synthesize import IMPACT_STATUS_LABELS, status_label
+
+    assert status_label("BROKEN", IMPACT_STATUS_LABELS) == "Bị phá vỡ"
+    assert status_label("", IMPACT_STATUS_LABELS) == "Chưa xác minh"
+    assert status_label(None, IMPACT_STATUS_LABELS) == "Chưa xác minh"

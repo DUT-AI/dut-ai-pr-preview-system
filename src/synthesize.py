@@ -251,8 +251,20 @@ def _evidence_cell(evidence) -> _Html | str:
     return _Html("<br>".join(f"<code>{_html_escape(e)}</code>" for e in evidence))
 
 
+def status_label(raw: str, labels: dict) -> str:
+    """Vietnamese word for a status.
+
+    Agents occasionally answer outside the schema (a thread status such as FIXED
+    on an impact row). That must not leak English into a Vietnamese report, and
+    must not be dropped either: the original value stays visible in brackets.
+    """
+    if raw in labels:
+        return labels[raw]
+    return f"Không rõ ({raw})" if raw else "Chưa xác minh"
+
+
 def _status_cell(raw: str, labels: dict, icons: dict) -> str:
-    return f"{icons.get(raw, '⚪')} {labels.get(raw, raw)}".strip()
+    return f"{icons.get(raw, '⚪')} {status_label(raw, labels)}"
 
 
 def _worst_first(items: list[dict], key: str, order: dict) -> list[dict]:

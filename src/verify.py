@@ -203,6 +203,10 @@ Thay đổi này được hiểu là làm gì:
 Yêu cầu:
 1. Tác động: thay đổi này ảnh hưởng đến yêu cầu/logic nghiệp vụ nào?
    CHANGED / BROKEN / UNAFFECTED / RISK, kèm theo chi tiết ngắn gọn.
+   - requirement là tên chức năng, hành vi hoặc module bị ảnh hưởng (ví dụ:
+     "Hiển thị bình luận review trên PR"). KHÔNG dùng mã yêu cầu như C1, C2 làm tên.
+   - impact chỉ nhận đúng một trong bốn giá trị trên. FIXED, RESOLVED, OUTDATED
+     chỉ dành cho threads, không dùng cho impact.
 2. Bình luận (Threads): các bình luận chưa được giải quyết có còn đúng với code hiện tại không?
 3. Đừng đoán. Bất cứ điều gì không thể kiểm tra → thêm vào unresolved_questions
    (mỗi câu hỏi ≤20 từ, bằng tiếng Việt).

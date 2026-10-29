@@ -465,3 +465,13 @@ def test_claude_runner_keeps_the_file_the_agent_wrote(tmp_path, monkeypatch):
                                    "prompt": "..."})
 
     assert json.loads((ws / "findings-docs.json").read_text()) == written
+
+
+def test_impact_prompt_forbids_claim_ids_and_foreign_statuses():
+    from src.verify import build_impact_prompt
+
+    prompt = build_impact_prompt(
+        {"title": "t", "body": "", "files": [], "threads": []},
+        [{"id": "C1", "text": "x"}], "findings-impact.json")
+    assert "KHÔNG dùng mã yêu cầu như C1, C2" in prompt
+    assert "FIXED, RESOLVED, OUTDATED" in prompt
