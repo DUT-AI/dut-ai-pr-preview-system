@@ -98,9 +98,12 @@ def chat(messages: list[dict], *, model: str, api_key: str, base_url: str,
                 )
                 time.sleep(min(int(retry_after), 30))
                 continue
-        except urllib.error.URLError as e:
+        except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+            # urlopen only wraps connect-phase failures in URLError. A reset or a
+            # read timeout while the model is still generating surfaces as a bare
+            # ConnectionError/TimeoutError and used to skip the retry loop.
             elapsed_ms = int((time.perf_counter() - started) * 1000)
-            last_err = f"{e.__class__.__name__}: {e.reason}"
+            last_err = f"{e.__class__.__name__}: {getattr(e, 'reason', None) or e}"
             _log(
                 "chat request error "
                 f"attempt={attempt}/{retries} elapsed_ms={elapsed_ms} error={last_err}"

@@ -13,7 +13,7 @@
     <a class="back" href="/dashboard">← Quay lại dashboard</a>
     <section class="detail-hero">
       <div class="detail-icon">{{ (repository.name or repository.full_name)[:1]|upper }}</div>
-      <div><p class="label">REPOSITORY</p><h1>{{ repository.full_name }}</h1><p class="muted">Nhánh mặc định: <code>{{ repository.default_branch or 'unknown' }}</code> · {{ pull_requests|length }} Pull Request đã nhận</p></div>
+      <div><p class="label">REPOSITORY</p><h1>{{ repository.full_name }}</h1><p class="muted">Nhánh mặc định: <code>{{ repository.default_branch or 'không rõ' }}</code> · {{ pull_requests|length }} Pull Request đã nhận</p></div>
       <span class="mode {{ 'enabled' if publish_enabled else 'preview' }}"><i></i>{{ 'BẬT TỰ ĐỘNG PUBLISH' if publish_enabled else 'CHỈ XEM TRƯỚC' }}</span>
     </section>
 
@@ -22,7 +22,7 @@
       {% for pr in pull_requests %}
       <article class="pr-row">
         <strong class="pr-number">#{{ pr.number }}</strong>
-        <div class="pr-main"><a href="/repositories/{{ repository.owner }}/{{ repository.name }}/pulls/{{ pr.number }}"><b>{{ pr.title or 'Pull Request không tiêu đề' }}</b></a><small>{{ pr.author or 'unknown' }} · {{ pr.head_ref }} → {{ pr.base_ref }} · {{ pr.run_count }} lần review</small></div>
+        <div class="pr-main"><a href="/repositories/{{ repository.owner }}/{{ repository.name }}/pulls/{{ pr.number }}"><b>{{ pr.title or 'Pull Request không tiêu đề' }}</b></a><small>{{ pr.author or 'không rõ' }} · {{ pr.head_ref }} → {{ pr.base_ref }} · {{ pr.run_count }} lần review</small></div>
         <div class="diff"><b>+{{ pr.additions or 0 }}</b><span>-{{ pr.deletions or 0 }}</span></div>
         <span class="state {{ (pr.latest_run_status or 'queued')|lower }}">{{ pr.latest_run_status or 'ĐANG CHỜ (QUEUED)' }}</span>
         <code>{{ pr.head_sha[:10] }}</code>

@@ -247,7 +247,7 @@ def test_run_verify_degrades_loudly_when_one_axis_fails(tmp_path, capsys):
     # Claims and impact still landed — the review is not thrown away.
     assert findings["claims"] and findings["impact"]
     assert findings["docs"] == []
-    assert any("Review gap" in q and "docs" in q
+    assert any("Khoảng trống review" in q and "docs" in q
                for q in findings["unresolved_questions"])
     assert "agent docs failed" in capsys.readouterr().err
 
@@ -403,7 +403,7 @@ def test_deepseek_runner_uses_current_sdk_profile_contract(tmp_path, monkeypatch
         session_dir / "harness-docs" / "cache"
     )
     assert str(workspace.resolve()) in captured["prompt"]
-    assert "Do not read or write outside that root" in captured["prompt"]
+    assert "Không đọc hoặc ghi bên ngoài thư mục gốc này" in captured["prompt"]
     assert captured["session_id"].startswith("verify-docs-")
 
 
@@ -465,3 +465,13 @@ def test_claude_runner_keeps_the_file_the_agent_wrote(tmp_path, monkeypatch):
                                    "prompt": "..."})
 
     assert json.loads((ws / "findings-docs.json").read_text()) == written
+
+
+def test_impact_prompt_forbids_claim_ids_and_foreign_statuses():
+    from src.verify import build_impact_prompt
+
+    prompt = build_impact_prompt(
+        {"title": "t", "body": "", "files": [], "threads": []},
+        [{"id": "C1", "text": "x"}], "findings-impact.json")
+    assert "KHÔNG dùng mã yêu cầu như C1, C2" in prompt
+    assert "FIXED, RESOLVED, OUTDATED" in prompt

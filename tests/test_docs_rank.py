@@ -44,7 +44,7 @@ def test_rank_docs_boosts_docs_a_claim_named(tmp_path):
     ranked = rank_docs(tmp_path, snapshot,
                        claims=[{"id": "C1", "docs": ["docs/a.md"]}])
     assert ranked[0]["path"] == "docs/a.md"
-    assert "named by a claim" in ranked[0]["why"]
+    assert "được nhắc đến trong yêu cầu" in ranked[0]["why"]
 
 
 def test_rank_docs_skips_docs_the_pr_itself_changed(tmp_path):

@@ -203,6 +203,10 @@ Thay đổi này được hiểu là làm gì:
 Yêu cầu:
 1. Tác động: thay đổi này ảnh hưởng đến yêu cầu/logic nghiệp vụ nào?
    CHANGED / BROKEN / UNAFFECTED / RISK, kèm theo chi tiết ngắn gọn.
+   - requirement là tên chức năng, hành vi hoặc module bị ảnh hưởng (ví dụ:
+     "Hiển thị bình luận review trên PR"). KHÔNG dùng mã yêu cầu như C1, C2 làm tên.
+   - impact chỉ nhận đúng một trong bốn giá trị trên. FIXED, RESOLVED, OUTDATED
+     chỉ dành cho threads, không dùng cho impact.
 2. Bình luận (Threads): các bình luận chưa được giải quyết có còn đúng với code hiện tại không?
 3. Đừng đoán. Bất cứ điều gì không thể kiểm tra → thêm vào unresolved_questions
    (mỗi câu hỏi ≤20 từ, bằng tiếng Việt).
@@ -283,9 +287,9 @@ def _run_agent(cfg: dict, workspace: Path, session_dir: Path, task: dict) -> str
     harness_cache.mkdir(parents=True, exist_ok=True)
     harness_user_home.mkdir(parents=True, exist_ok=True)
     prompt = (
-        f"Trusted review workspace root: {workspace.resolve()}\n"
-        "Use absolute paths under that root when calling file tools. "
-        "Do not read or write outside that root.\n\n"
+        f"Thư mục gốc của workspace review (đáng tin cậy): {workspace.resolve()}\n"
+        "Dùng đường dẫn tuyệt đối nằm dưới thư mục gốc này khi gọi công cụ file. "
+        "Không đọc hoặc ghi bên ngoài thư mục gốc này.\n\n"
         f"{task['prompt']}"
     )
     with DeepSeekHarness(
@@ -449,7 +453,8 @@ def run_verify(cfg: dict, workspace: Path, session_dir: Path, snapshot: dict,
     for task, error in failures:
         print(f"[verify] agent {task['name']} failed: {error}", file=sys.stderr)
         findings["unresolved_questions"].append(
-            f"Review gap: the {task['name']} agent failed ({error}) — check this axis by hand.")
+            f"Khoảng trống review: agent {task['name']} thất bại ({error}) — "
+            f"hãy kiểm tra trục này thủ công.")
 
     _validate_findings(findings)
     return findings

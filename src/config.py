@@ -7,10 +7,16 @@ from pathlib import Path
 def _load_dotenv() -> None:
     # Never load CWD/.env: a reviewed checkout is untrusted and could redirect
     # the provider or inject a credential. Home files are operator-controlled.
+    try:
+        home = Path.home()
+    except RuntimeError:
+        # Containers and service accounts can have no HOME and no passwd entry.
+        # Home files are optional; the process environment is still honoured.
+        return
     candidates = [
-        Path.home() / ".dut-ai-pr-preview-system" / ".env",
+        home / ".dut-ai-pr-preview-system" / ".env",
         # Backward-compatible location used by the upstream package.
-        Path.home() / ".harness-pr-review" / ".env",
+        home / ".harness-pr-review" / ".env",
     ]
     for path in candidates:
         if not path.exists():

@@ -3,7 +3,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.synthesize import summary_counts
+from src.synthesize import (DOC_STATUS_LABELS, IMPACT_STATUS_LABELS,
+                            STATUS_LABELS, THREAD_STATUS_LABELS, status_label,
+                            summary_counts)
+
+
+class _Labels(dict):
+    """Status -> Vietnamese word; an unexpected status degrades, never raises."""
+
+    def __missing__(self, key):
+        return status_label(key, {})
+
+
+# One source for the words: the dashboard preview must read like the comment.
+FINDING_LABELS = {
+    "claim": _Labels(STATUS_LABELS), "doc": _Labels(DOC_STATUS_LABELS),
+    "impact": _Labels(IMPACT_STATUS_LABELS), "thread": _Labels(THREAD_STATUS_LABELS),
+}
 
 
 def _normalized_findings(raw_findings: Any) -> dict[str, list[Any]]:
@@ -52,6 +68,7 @@ def run_review_view(detail: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "findings": normalized,
+        "labels": FINDING_LABELS,
         "counts": counts,
         "github_comment_url": github_comment_url,
         "has_preview": bool(run.get("preview_comment")),

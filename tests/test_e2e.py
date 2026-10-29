@@ -43,13 +43,13 @@ def test_e2e_fixtures(tmp_path):
     proc = subprocess.run(
         [sys.executable, "-m", "src.run", "demo/app", "7",
          "--fixtures", str(fixtures), "--no-post", "--skip-human"],
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, encoding="utf-8", env=env,
         cwd=Path(__file__).resolve().parents[1])
     assert proc.returncode == 0, proc.stderr
 
     report = Path(env["DSH_SESSION_ROOT"]) / "demo" / "app" / "pr-7" / "report.md"
-    text = report.read_text()
-    assert "## Verdict" in text
+    text = report.read_text(encoding="utf-8")
+    assert "## Đánh giá" in text
     assert "docs/checkout.md" in text
     assert "REQ-1" in text
     assert "SKIPPED" in text
