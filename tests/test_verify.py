@@ -247,7 +247,7 @@ def test_run_verify_degrades_loudly_when_one_axis_fails(tmp_path, capsys):
     # Claims and impact still landed — the review is not thrown away.
     assert findings["claims"] and findings["impact"]
     assert findings["docs"] == []
-    assert any("Review gap" in q and "docs" in q
+    assert any("Khoảng trống review" in q and "docs" in q
                for q in findings["unresolved_questions"])
     assert "agent docs failed" in capsys.readouterr().err
 
@@ -403,7 +403,7 @@ def test_deepseek_runner_uses_current_sdk_profile_contract(tmp_path, monkeypatch
         session_dir / "harness-docs" / "cache"
     )
     assert str(workspace.resolve()) in captured["prompt"]
-    assert "Do not read or write outside that root" in captured["prompt"]
+    assert "Không đọc hoặc ghi bên ngoài thư mục gốc này" in captured["prompt"]
     assert captured["session_id"].startswith("verify-docs-")
 
 

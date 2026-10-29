@@ -36,7 +36,7 @@
       {% for repo in repositories %}
       <a class="repo-row" href="/repositories/{{ repo.owner }}/{{ repo.name }}">
         <span class="repo-icon">{{ repo.name[:1]|upper }}</span>
-        <span class="repo-name"><b>{{ repo.name }}</b><small>{{ repo.owner }} / default: {{ repo.default_branch or 'unknown' }}</small></span>
+        <span class="repo-name"><b>{{ repo.name }}</b><small>{{ repo.owner }} / default: {{ repo.default_branch or 'không rõ' }}</small></span>
         <span class="row-metric"><b>{{ repo.pull_request_count }}</b><small>PULL REQUESTS</small></span>
         <span class="row-metric"><b>{{ repo.run_count }}</b><small>REVIEW RUNS</small></span>
         <span class="row-metric"><b>{{ repo.active_job_count }}</b><small>ĐANG CHẠY</small></span>

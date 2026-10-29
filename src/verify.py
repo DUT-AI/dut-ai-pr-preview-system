@@ -283,9 +283,9 @@ def _run_agent(cfg: dict, workspace: Path, session_dir: Path, task: dict) -> str
     harness_cache.mkdir(parents=True, exist_ok=True)
     harness_user_home.mkdir(parents=True, exist_ok=True)
     prompt = (
-        f"Trusted review workspace root: {workspace.resolve()}\n"
-        "Use absolute paths under that root when calling file tools. "
-        "Do not read or write outside that root.\n\n"
+        f"Thư mục gốc của workspace review (đáng tin cậy): {workspace.resolve()}\n"
+        "Dùng đường dẫn tuyệt đối nằm dưới thư mục gốc này khi gọi công cụ file. "
+        "Không đọc hoặc ghi bên ngoài thư mục gốc này.\n\n"
         f"{task['prompt']}"
     )
     with DeepSeekHarness(
@@ -449,7 +449,8 @@ def run_verify(cfg: dict, workspace: Path, session_dir: Path, snapshot: dict,
     for task, error in failures:
         print(f"[verify] agent {task['name']} failed: {error}", file=sys.stderr)
         findings["unresolved_questions"].append(
-            f"Review gap: the {task['name']} agent failed ({error}) — check this axis by hand.")
+            f"Khoảng trống review: agent {task['name']} thất bại ({error}) — "
+            f"hãy kiểm tra trục này thủ công.")
 
     _validate_findings(findings)
     return findings
